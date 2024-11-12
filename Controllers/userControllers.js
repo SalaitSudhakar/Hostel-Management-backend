@@ -6,6 +6,7 @@ import sendEmail from "../Services/mailer.js";
 
 dotenv.config();
 
+// Register User
 export const registerUser = async (req, res) => {
   try {
     const { name, email, password } = req.body;
@@ -74,6 +75,7 @@ export const forgotPassword = async (req, res) => {
   }
 };
 
+// reset Password
 export const resetPassword = async (req, res) => {
   try {
     const { id, token } = req.params;

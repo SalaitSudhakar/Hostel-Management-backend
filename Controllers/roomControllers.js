@@ -1,5 +1,6 @@
 import Room from "../Models/roomSchema.js";
 
+// Create Room
 export const createRoom = async (req, res) => {
   try {
     const newRoom = new Room(req.body);
@@ -13,6 +14,7 @@ export const createRoom = async (req, res) => {
   }
 };
 
+// Update Room
 export const updateRoom = async (req, res) => {
   try {
     const { id } = req.params;
@@ -32,6 +34,8 @@ export const updateRoom = async (req, res) => {
   }
 };
 
+
+// Delete Room
 export const deleteRoom = async (req, res) => {
   try {
     const { id } = req.params;
@@ -49,6 +53,7 @@ export const deleteRoom = async (req, res) => {
   }
 };  
 
+// Get All Rooms
 export const getAllRooms = async (req, res) => {
     try {
         const rooms = await Room.find();
@@ -60,6 +65,7 @@ export const getAllRooms = async (req, res) => {
     }
 }
 
+// Get Single Room
 export const getSingleRoom = async (req, res) => {
     try {
         const { id } = req.params;

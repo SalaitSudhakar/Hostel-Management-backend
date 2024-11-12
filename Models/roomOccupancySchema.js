@@ -8,11 +8,13 @@ const roomOccupancySchema = new mongoose.Schema(
       required: true,
     },
 
-    resident: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "Resident",
-      required: true,
-    },
+    residents: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "Resident",
+        required: true,
+      },
+    ],
 
     status: {
       type: String,
@@ -35,13 +37,27 @@ const roomOccupancySchema = new mongoose.Schema(
     checkOutDate: {
       type: Date,
     },
+
+    dailyOccupancy: {
+      type: Number,
+      default: 0,
+    },
+
+    monthlyOccupancy: {
+      type: Number,
+      default: 0,
+    },
+
+    yearlyOccupancy: {
+      type: Number,
+      default: 0,
+    },
   },
 
   {
     timestamps: true,
   }
 );
-
 
 const RoomOccupancy = mongoose.model("RoomOccupancy", roomOccupancySchema);
 

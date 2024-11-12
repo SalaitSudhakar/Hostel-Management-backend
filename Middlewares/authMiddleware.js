@@ -31,6 +31,7 @@ export const adminMiddleware = async(req, res, next) => {
   next();
 };
 
+// Middleware for staff functionalites
 export const staffMiddleware = async(req, res, next) => {
 
   if(req.user.role !== "staff"){    
