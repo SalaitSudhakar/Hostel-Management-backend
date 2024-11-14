@@ -1,6 +1,6 @@
 import express from 'express';
-import { authMiddleware, adminMiddleware } from './../Middlewares/authMiddleware';
-import { createRoom, deleteRoom, getAllRooms, updateRoom } from '../Controllers/roomControllers';
+import { authMiddleware, adminMiddleware } from './../Middlewares/authMiddleware.js';
+import { createRoom, deleteRoom, getAllRooms, getSingleRoom, updateRoom } from '../Controllers/roomControllers.js';
 
 
 const router = express.Router();

@@ -17,7 +17,7 @@ const sendEmail = async (to, subject, text) => {
       from: process.env.PASS_MAIL,
       to,
       subject,
-      text
+      html
   };
   return transport.sendMail(mailOptions)
 };

@@ -25,9 +25,12 @@ const roomSchema = new mongoose.Schema(
       required: true,
       default: 0,
       min: 0,
-      max: function () {
-        return this.capacity;
+      validate: {
+        validator:function (value) {
+        return value <= this.capacity;
       },
+      message: "Current occupant count cannot exceed the room capacity."
+    },
     },
 
     isAvailable: {
@@ -42,7 +45,7 @@ const roomSchema = new mongoose.Schema(
 
     /* status: {
       type: String,
-      enum: ["available", "occupied", "maintanence", "reserved"],
+      enum: ["available", "occupied", "maintenance", "reserved"],
       default: "available",
     }, */
   },

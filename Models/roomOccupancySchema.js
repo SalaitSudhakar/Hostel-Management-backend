@@ -12,46 +12,9 @@ const roomOccupancySchema = new mongoose.Schema(
       {
         type: mongoose.Schema.Types.ObjectId,
         ref: "Resident",
-        required: true,
       },
     ],
 
-    status: {
-      type: String,
-      enum: ["active", "vacated", "overdue"],
-      default: "active",
-    },
-
-    billingStatus: {
-      type: String,
-      enum: ["paid", "unpaid", "late"],
-      default: "unpaid",
-    },
-
-    checkInDate: {
-      type: Date,
-      required: true,
-      default: Date.now,
-    },
-
-    checkOutDate: {
-      type: Date,
-    },
-
-    dailyOccupancy: {
-      type: Number,
-      default: 0,
-    },
-
-    monthlyOccupancy: {
-      type: Number,
-      default: 0,
-    },
-
-    yearlyOccupancy: {
-      type: Number,
-      default: 0,
-    },
   },
 
   {

@@ -1,10 +1,14 @@
 import mongoose from "mongoose";
 
-const revenueSchema = new mongoose.Schema({
+const expenseSchema = new mongoose.Schema({
   category: {
     type: String,
     enum: ["room", "utilities", "other"],
     required: true,
+  },
+
+  description: {
+    type: String,
   },
 
   amount: {
@@ -15,22 +19,11 @@ const revenueSchema = new mongoose.Schema({
   paidBy: {
     type: Date,
     default: Date.now,
-    require: true,
+    required: true,
   },
 
-  dailyExpense: {
-    type: Number,
-  },
-
-  monthlyExpense: {
-    type: Number,
-  },
-
-  yearlyExpense: {
-    type: Number,
-  },
 });
 
-const Expense = mongoose.model("Expense", revenueSchema);
+const Expense = mongoose.model("Expense", expenseSchema);
 
 export default Expense;

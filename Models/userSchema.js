@@ -9,7 +9,7 @@ const userSchema = new mongoose.Schema(
     },
 
     phoneNumber: {
-      type: Number,
+      type: String,
       required: true,
     },
 
@@ -18,36 +18,29 @@ const userSchema = new mongoose.Schema(
       required: true,
     },
 
-    password: {
-      type: String,
-      required: true
-    },
-
-    token : {
-      type: String,
-    },
-
     role: {
       type: String,
       enum: ["Resident", "Staff", "Admin"],
       default: "Resident",
     },
 
-    dateofbirth: {
+    password: {
+      type: String,
+      required: true,
+    },
+
+    token: {
+      type: String,
+    },
+
+    dateOfBirth: {
       type: Date,
       require: true,
     },
 
     emergencyContact: {
-      name: {
-        type: String,
-        required: true,
-      },
-
-      phoneNumber: {
-        type: Number,
-        required: true,
-      },
+      type: String,
+      required: true,
     },
 
     gender: {
@@ -56,19 +49,15 @@ const userSchema = new mongoose.Schema(
     },
 
     address: {
-        type: String,
-        required: true,
-      },
+      type: String,
+      required: true,
+    },
 
     createdAt: {
       type: Date,
       default: Date.now,
     },
 
-    updatedAt: {
-      type: Date,
-      default: Date.now,
-    },
   },
 
   {

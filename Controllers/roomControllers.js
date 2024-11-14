@@ -24,13 +24,13 @@ export const updateRoom = async (req, res) => {
       return res.status(404).json({ message: "Room Not Found" });
     }
 
-    const updateRoom = new Room.findByIdAndUpdate(id, req.body, { new: true });
+    const updateRoom = await Room.findByIdAndUpdate(id, req.body, { new: true });
 
     res
       .status(200)
       .json({ message: "Room Updated Successfully", data: updateRoom });
   } catch (error) {
-    res.status;
+    res.status(500).json({ message: error.message }); 
   }
 };
 

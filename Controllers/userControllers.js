@@ -6,13 +6,31 @@ import sendEmail from "../Services/mailer.js";
 
 dotenv.config();
 
+// Helper function to hash password
+const hashPassword = async (password) => await bcrypt.hash(password, 10);
+
 // Register User
 export const registerUser = async (req, res) => {
   try {
-    const { name, email, password } = req.body;
-    const hashPassword = await bcrypt.hash(password, 10);
+    const { name, email, password, phoneNumber, role, address, gender, dateOfBirth, emergencyContact } = req.body;
+
+    if (await User.findOne({ email })) {
+      return res.status(400).json({ message: "Email already in use" });
+    }
+
     //console.log(hashPassword);
-    const newUser = new User({ name, email, password: hashPassword });
+    const newUser = new User({
+      name,
+      email,
+      password: await hashPassword(password),
+      phoneNumber,
+      emergencyContact,
+      gender,
+      dateOfBirth,
+      role, 
+      address,
+
+    });
     await newUser.save();
     res
       .status(200)
@@ -35,9 +53,13 @@ export const loginUser = async (req, res) => {
       return res.status(400).json({ message: "Invalid Password" });
     }
 
-    const token = jwt.sign({ _id: user._id }, process.env.JWT_SECRET, {
-      expiresIn: "1h",
-    });
+    const token = jwt.sign(
+      { _id: user._id, role: user.role },
+      process.env.JWT_SECRET,
+      {
+        expiresIn: "1h",
+      }
+    );
     user.token = token;
     await user.save();
     res
@@ -56,11 +78,20 @@ export const forgotPassword = async (req, res) => {
     if (!user) {
       return res.status(404).json({ message: "User Not Found" });
     }
-    const token = jwt.sign({ _id: user._id }, process.env.JWT_SECRET, {
+    const resetToken = jwt.sign({ _id: user._id }, process.env.JWT_SECRET, {
       expiresIn: "1h",
     });
 
-    sendEmail(mailOptions, function (error, info) {
+    const resetLink = `https://password-reset-project-reactjs.netlify.app/reset-password/${user._id}/${resetToken}`
+    const subject = "Password Reset Link";
+    const html = `
+    <p>You recently requested to reset the password for your account.</p>
+    <p>Click the link below to proceed</p>
+    <a href="${resetLink}">Click Here</a>
+    <p>This link is valid for 30 minutes. If you did not request a password reset, please ignore this email.</p>
+    `;
+
+    sendEmail(user.email, subject, html, function (error, info) {
       if (error) {
         console.log(error);
         res
@@ -80,16 +111,18 @@ export const resetPassword = async (req, res) => {
   try {
     const { id, token } = req.params;
     const { password } = req.body;
+
     jwt.verify(token, process.env.JWT_SECRET, async (err, decoded) => {
       if (err) {
         return res.status(401).json({ message: "Invalid or expired token" });
       }
+
       const user = await User.findById(id);
       if (!user) {
         return res.status(404).json({ message: "User Not Found" });
       }
-      const hashPassword = await bcrypt.hash(password, 10);
-      user.password = hashPassword;
+
+      user.password = await hashPassword(password);
       await user.save();
       res.status(200).json({ message: "Password Reset Successfully" });
     });
@@ -99,28 +132,12 @@ export const resetPassword = async (req, res) => {
 };
 
 
-// Update User Role - Only Admins Can Access
-export const updateUserRole = async (req, res) => {
-    try {
-      const { userId, role } = req.body;
-  
-      // Ensure only Admins can change roles
-      if (req.user.role !== 'Admin') {
-        return res.status(403).json({ message: 'Access denied: Only Admins can change roles' });
-      }
-  
-      // Update the role of the specified user
-      const user = await User.findByIdAndUpdate(userId, { role }, { new: true });
-      if (!user) {
-        return res.status(404).json({ message: 'User not found' });
-      }
-  
-      res.status(200).json({
-        message: 'User role updated successfully',
-        data: user,
-      });
-    } catch (error) {
-      res.status(500).json({ message: error.message });
-    }
-  };
-  
+// Get all users
+export const getAllUsers = async (req, res) => {
+  try {
+    const users = await User.find().select("-password");
+    res.status(200).json(users);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+}

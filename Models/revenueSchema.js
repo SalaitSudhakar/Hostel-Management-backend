@@ -4,7 +4,7 @@ const revenueSchema = new mongoose.Schema({
   category: {
     type: String,
     enum: ["rent", "maintenance", "other"],
-    category: true,
+    required: true,
   },
 
   amount: {
@@ -15,24 +15,9 @@ const revenueSchema = new mongoose.Schema({
   receivedBy: {
     type: Date,
     required: true,
-    default: date.now,
+    default: Date.now,
   },
 
-
-  dailyRevenue: {
-    type: Number,
-    default: 0
-  },
-
-  monthlyRevenue: {
-    type: Number,
-    default: 0
-  },
-
-  yearlyRevenue: {
-    type: Number,
-    default: 0
-  },
 });
 
 const Revenue = mongoose.model("Revenue", revenueSchema);

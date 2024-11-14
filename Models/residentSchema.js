@@ -19,10 +19,14 @@ const residentSchema = new mongoose.Schema(
       default: Date.now,
     },
 
+    billingStatus : {
+      type: String,
+      enum: ["unpaid", "paid"],
+    },
+    
     checkOutDate: {
       type: Date,
     },
- 
   },
 
   {
