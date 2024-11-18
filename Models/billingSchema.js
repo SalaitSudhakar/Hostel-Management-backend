@@ -7,81 +7,44 @@ const billingSchema = new mongoose.Schema(
       ref: "Resident",
       required: true,
     },
-
     room: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Room",
       required: true,
     },
-
     billingPeriod: {
       startDate: {
         type: Date,
         required: true,
+        validate: {
+          validator: function (v) {
+            return this.billingPeriod.endDate > v;
+          },
+          message: "Start date must be before the end date.",
+        },
       },
-      endDate: {
-        type: Date,
-        required: true,
-      },
+      endDate: { type: Date, required: true },
     },
-
-    amountDue: {
-      type: Number,
-      required: true,
-    },
-
-    amountPaid: {
-      type: Number,
-      default: 0,
-    },
-
+    amountDue: { type: Number, required: true },
+    amountPaid: { type: Number, default: 0 },
+    dueDate: { type: Date, required: true },
     paymentStatus: {
       type: String,
-      enum: ["unpaid", "partially paid", "paid", "late"],
+      enum: ["paid", "unpaid"],
       default: "unpaid",
     },
-
-    dueDate: {
-      type: Date,
-      required: true,
-    },
-
+    serviceCharge: { type: Number, required: true },
+    lateFee: { type: Number, default: 0 },
     paymentHistory: [
       {
-        paymentDate: {
-          type: Date,
-          required: true,
-        },
-        amount: {
-          type: Number,
-          required: true,
-        },
-        paymentMethod: {
-          type: String,
-          enum: ["cash", "credit card", "bank transfer", "online"],
-          required: true,
-        },
-        transactionId: {
-          type: String,
-          required: true,
-        },
+        paymentDate: { type: Date },
+        amount: { type: Number },
+        paymentMethod: { type: String, default: "cash" },
+        transactionId: { type: String },
       },
     ],
-    
-    lateFee: {
-      type: Number,
-      default: 0,
-    },
-
-    notes: {
-      type: String,
-    },
   },
-  {
-    timestamps: true,
-  }
+  { timestamps: true }
 );
 
-const Billing = mongoose.model("Billing", billingSchema);
-
-export default Billing;
+export default mongoose.model("Billing", billingSchema);

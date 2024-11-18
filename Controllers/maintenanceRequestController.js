@@ -1,131 +1,111 @@
-import MaintanenceRequest from "../Models/maintanenceRequestSchema.js";
+import MaintenanceRequest from "../Models/maintenanceRequestSchema.js";
 import Resident from "../Models/residentSchema.js";
-import User from "../Models/userSchema.js";
+import sendEmail from "../Utils/mailer.js"; 
 
 // Create a new maintenance request
 export const createMaintenanceRequest = async (req, res) => {
-  try {
-    const { room, resident, description, priorityLevel } = req.body;
+  const { residentId, issue, priority } = req.body;
 
-    // Validate if resident and room exist
-    const foundResident = await Resident.findById(resident);
-    if (!foundResident) {
+  try {
+    const resident = await Resident.findById(residentId);
+    if (!resident) {
       return res.status(404).json({ message: "Resident not found" });
     }
 
-    const foundRoom = foundResident.room.find(r => r._id.toString() === room);
-    if (!foundRoom) {
-      return res.status(404).json({ message: "Room not found for this resident" });
-    }
-
-    const newRequest = new MaintanenceRequest({
-      room,
-      resident,
-      description,
-      priorityLevel,
+    const maintenanceRequest = new MaintenanceRequest({
+      resident: residentId,
+      issue,
+      priority,
+      status: "Pending",
+      createdAt: new Date(),
     });
 
-    await newRequest.save();
-    res.status(201).json({ message: "Maintenance request created", request: newRequest });
+    await maintenanceRequest.save();
+
+    // Send email notification
+    const to = resident.email;
+    const subject = "Maintenance Request";
+    const text = `Resident: ${resident.name}\nIssue: ${issue}\nPriority: ${priority}\nStatus: ${maintenanceRequest.status}`;
+
+    await sendEmail(to, subject, text);
+
+    res.status(201).json({ message: "Maintenance request created successfully", maintenanceRequest });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: "Error creating maintenance request" });
   }
 };
 
-// Get all maintenance requests (filter by resident, room, or status)
-export const getMaintenanceRequests = async (req, res) => {
+// Get all maintenance requests
+export const getAllMaintenanceRequests = async (req, res) => {
   try {
-    const { status, residentId, roomId } = req.query;
-
-    // Build the query filter based on parameters
-    let filter = {};
-    if (status) filter.status = status;
-    if (residentId) filter.resident = residentId;
-    if (roomId) filter.room = roomId;
-
-    const requests = await MaintanenceRequest.find(filter).populate("room resident assignStaff");
-
+    const requests = await MaintenanceRequest.find().populate("resident");
     res.status(200).json(requests);
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: "Error fetching maintenance requests" });
   }
 };
 
-// Update the status of a maintenance request (e.g., mark as resolved)
-export const updateMaintenanceRequest = async (req, res) => {
+// Update maintenance request status (Admin only)
+export const updateMaintenanceRequestStatus = async (req, res) => {
+  const { requestId } = req.params;
+  const { staff } = req.body;
+
   try {
-    const { requestId } = req.params;
-    const { status, assignStaff } = req.body;
-
-    // Validate that the request exists
-    const request = await MaintanenceRequest.findById(requestId);
+    const request = await MaintenanceRequest.findById(requestId);
     if (!request) {
-      return res.status(404).json({ message: "Maintenance request not found" });
+      return res.status(404).json({ message: "Request not found" });
     }
 
-    // Update the status and assign staff if provided
-    if (status) request.status = status;
-    if (assignStaff) {
-      const staffMember = await User.findById(assignStaff);
-      if (!staffMember) {
-        return res.status(404).json({ message: "Staff member not found" });
-      }
-      request.assignStaff = staffMember._id;
-    }
-
-    // If the status is resolved, set the resolvedAt timestamp
-    if (request.status === "resolved" && !request.resolvedAt) {
-      request.resolvedAt = new Date();
-    }
-
+    request.assignedTo = staff;
+    request.status = "In Progess";
     await request.save();
-    res.status(200).json({ message: "Maintenance request updated", request });
+
+    //send Email
+    const to = request.resident.email;
+    const subject = "Maintenance Request Update";
+    const text = `Staff has been assigned to solve the issue\n Resident: ${request.resident.name}\nIssue: ${request.issue}\nPriority: ${request.priority}\nStatus: ${request.status}`;
+
+    await sendEmail(to, subject, text);
+
+    res.status(200).json({ message: "Maintenance request updated successfully", request });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: "Error updating maintenance request" });
   }
 };
 
-// Delete a maintenance request
-export const deleteMaintenanceRequest = async (req, res) => {
+export const resolveMaintenanceRequest = async (req, res) => {
   try {
     const { requestId } = req.params;
-
-    // Find and delete the maintenance request
-    const request = await MaintanenceRequest.findByIdAndDelete(requestId);
+    const request = await MaintenanceRequest.findById(requestId);
     if (!request) {
-      return res.status(404).json({ message: "Maintenance request not found" });
+      return res.status(404).json({ message: "Request not found" });
     }
-
-    res.status(200).json({ message: "Maintenance request deleted", request });
+    if (request.status !== "Pending") {
+      return res.status(400).json({ message: "Only pending requests can be resolved" });
+    }
+    request.status = "Resolved";
+    await request.save();
+    res.status(200).json({ message: "Maintenance request resolved successfully", request });
   } catch (error) {
-    res.status(500).json({ message: error.message });
-  }
-};
+    res.status(500).json({ message: "Error resolving maintenance request" });
+  }   
+}
 
-// Calculate the service charge based on maintenance requests
-export const calculateServiceCharge = async (residentId, startDate, endDate) => {
+
+export const deleteMaintenanceRequest = async (req, res) => { 
   try {
-    // Find maintenance requests for the resident within the specified date range
-    const requests = await MaintanenceRequest.find({
-      resident: residentId,
-      createdAt: { $gte: startDate, $lte: endDate },
-      status: "resolved", // Only count resolved requests for the service charge
-    });
-
-    let serviceCharge = 0;
-    requests.forEach((request) => {
-      // Service charge logic can be based on priority or complexity of the request
-      if (request.priorityLevel === "high") {
-        serviceCharge += 100; // Example: high priority requests may cost more
-      } else if (request.priorityLevel === "medium") {
-        serviceCharge += 50; // Example: medium priority requests may cost less
-      } else {
-        serviceCharge += 20; // Example: low priority requests have the lowest cost
-      }
-    });
-
-    return serviceCharge;
+    const { requestId } = req.params;
+    const request = await MaintenanceRequest.findById(requestId);
+    if (!request) {
+      return res.status(404).json({ message: "Request not found" });
+    }
+    if (request.status === "Resolved") {
+      return res.status(400).json({ message: "Only pending requests can be deleted" });
+    }
+    await MaintenanceRequest.findByIdAndDelete();
+    res.status(200).json({ message: "Maintenance request deleted successfully" });
   } catch (error) {
-    throw new Error(`Error calculating service charge: ${error.message}`);
+    res.status(500).json({ message: "Error deleting maintenance request" });
   }
 };
+

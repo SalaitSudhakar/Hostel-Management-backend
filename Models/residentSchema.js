@@ -1,39 +1,32 @@
-import mongoose from "mongoose";
+import mongoose from 'mongoose';
 
-const residentSchema = new mongoose.Schema(
-  {
-    user: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "User",
-      required: true,
-    },
-
-    room: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "Room",
-    },
-
-    checkInDate: {
-      type: Date,
-      required: true,
-      default: Date.now,
-    },
-
-    billingStatus : {
-      type: String,
-      enum: ["unpaid", "paid"],
-    },
-    
-    checkOutDate: {
-      type: Date,
+const residentSchema = new mongoose.Schema({
+  name: { type: String, required: true },
+  email: { type: String, required: true, unique: true },
+  phone: { type: String, required: true },
+  room: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Room',
+    required: true,
+  },
+  emergencyContact: {
+    name: { type: String },
+    phone: { type: String },
+  },
+  checkInDate: { type: Date, required: true },
+  checkOutDate: {
+    type: Date,
+    validate: {
+      validator: function (v) {
+        return !v || v > this.checkInDate;
+      },
+      message: "Check-out date must be after check-in date.",
     },
   },
+  billingHistory: [{
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Billing',
+  }],
+}, { timestamps: true });
 
-  {
-    timestamps: true,
-  }
-);
-
-const Resident = mongoose.model("Resident", residentSchema);
-
-export default Resident;
+export default mongoose.model('Resident', residentSchema);
