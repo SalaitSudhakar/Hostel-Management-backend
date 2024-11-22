@@ -16,4 +16,6 @@ const revenueExpenseSchema = new mongoose.Schema({
   details: { type: String },
 }, { timestamps: true });
 
-export default mongoose.model('RevenueExpense', revenueExpenseSchema);
+const RevenueExpense = mongoose.model('RevenueExpense', revenueExpenseSchema);
+
+export default RevenueExpense;

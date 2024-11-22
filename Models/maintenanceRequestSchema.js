@@ -25,4 +25,6 @@ const maintenanceRequestSchema = new mongoose.Schema({
   assignedTo: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
 }, { timestamps: true });
 
-export default mongoose.model('MaintenanceRequest', maintenanceRequestSchema);
+const MaintenanceRequest =  mongoose.model('MaintenanceRequest', maintenanceRequestSchema);
+
+export default MaintenanceRequest;

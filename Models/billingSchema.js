@@ -16,12 +16,6 @@ const billingSchema = new mongoose.Schema(
       startDate: {
         type: Date,
         required: true,
-        validate: {
-          validator: function (v) {
-            return this.billingPeriod.endDate > v;
-          },
-          message: "Start date must be before the end date.",
-        },
       },
       endDate: { type: Date, required: true },
     },
@@ -35,16 +29,10 @@ const billingSchema = new mongoose.Schema(
     },
     serviceCharge: { type: Number, required: true },
     lateFee: { type: Number, default: 0 },
-    paymentHistory: [
-      {
-        paymentDate: { type: Date },
-        amount: { type: Number },
-        paymentMethod: { type: String, default: "cash" },
-        transactionId: { type: String },
-      },
-    ],
   },
   { timestamps: true }
 );
 
-export default mongoose.model("Billing", billingSchema);
+const BIlling =  mongoose.model("Billing", billingSchema);
+
+export default BIlling;

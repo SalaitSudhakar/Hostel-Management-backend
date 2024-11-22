@@ -4,38 +4,37 @@ import dotenv from "dotenv";
 
 dotenv.config();
 
+// Authentication Middleware
 export const authMiddleware = async (req, res, next) => {
-  //const token = req.header("Authorization"); // 1st method
-  const token = req.headers.authorization?.split(" ")[1]; // split(' ') [1] => bearer token
+  const token = req.headers.authorization?.split(" ")[1];
 
   if (!token) {
-    return res.status(401).json({ message: "Token Missing" });
+    return res.status(401).json({ message: "Token is missing. Authorization denied." });
   }
 
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    console.log(decoded);
     req.user = await User.findById(decoded._id).select("-password");
+
+    console.log(req.user);
+    if (!req.user) {
+      return res.status(404).json({ message: "hello" });
+    }
+
     next();
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    const isTokenExpired = error.name === "TokenExpiredError";
+    res.status(401).json({
+      message: isTokenExpired ? "Token expired. Please login again." : "Invalid token.",
+    });
   }
 };
 
-// Middleware for admin functionalites
-
-export const adminMiddleware = async(req, res, next) => {
-
-  if(req.user.role !== "admin"){
-    return res.status(403).json({message: "Access Denied"});
+// Role-based Middleware
+export const roleMiddleware = (role1, role2=null) => (req, res, next) => {
+  if (req.user.role !== role1 && req.user.role !== role2) {
+    return res.status(403).json({ message: `Access denied. only ${role1} or ${role2} can access this page.` });
   }
   next();
 };
-
-// Middleware for staff functionalites
-export const staffMiddleware = async(req, res, next) => {
-
-  if(req.user.role !== "staff"){    
-    return res.status(403).json({message: "Access Denied"});
-  }
-  next();
-}

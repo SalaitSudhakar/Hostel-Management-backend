@@ -1,13 +1,14 @@
 import mongoose from 'mongoose';
 
 const residentSchema = new mongoose.Schema({
-  name: { type: String, required: true },
-  email: { type: String, required: true, unique: true },
-  phone: { type: String, required: true },
-  room: {
+  user: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: 'Room',
-    required: true,
+    ref: 'User',
+  },
+  room: { 
+    type: mongoose.Schema.Types.ObjectId, 
+    ref: 'Room', 
+    required: true, 
   },
   emergencyContact: {
     name: { type: String },
@@ -16,17 +17,21 @@ const residentSchema = new mongoose.Schema({
   checkInDate: { type: Date, required: true },
   checkOutDate: {
     type: Date,
-    validate: {
-      validator: function (v) {
-        return !v || v > this.checkInDate;
-      },
-      message: "Check-out date must be after check-in date.",
-    },
+    default: null,
   },
   billingHistory: [{
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Billing',
   }],
+  status: {
+    type: String,
+    enum: ['active', 'checked-out', 'inactive'],
+    default: 'active',
+  },
 }, { timestamps: true });
 
-export default mongoose.model('Resident', residentSchema);
+residentSchema.index({ email: 1 }); // Indexing for faster search
+
+const Resident = mongoose.model('Resident', residentSchema);
+
+export default Resident;
