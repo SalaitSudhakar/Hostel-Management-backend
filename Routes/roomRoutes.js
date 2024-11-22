@@ -7,7 +7,7 @@ const router = express.Router();
 router.get('/getAvailableRooms', getAvailableRooms);
 router.put('/assignRoom', authMiddleware, roleMiddleware('resident'), assignRoomToResident);
 router.put('/updateRoomAvailability', authMiddleware, roleMiddleware('admin'), updateRoomAvailability);
-router.post('/add-room', authMiddleware, roleMiddleware('admin'), addRoom);
+router.post('/create', authMiddleware, roleMiddleware('admin'), addRoom);
 router.get('/get-all-rooms',  getAllRooms);
 router.get('/get-residents-with-rooms', authMiddleware, roleMiddleware('admin'), getRoomsWithResidents);
 
