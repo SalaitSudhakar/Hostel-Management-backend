@@ -1,19 +1,21 @@
 import express from 'express';
-import { getResidentProfile, createResident, getAllResidents, updateResidentProfile } from '../Controllers/residentController.js';
-import { authMiddleware, roleMiddleware } from '../Middlewares/authMiddleware.js'; // Import your middlewares
+import { authMiddleware, roleMiddleware } from '../Middlewares/authMiddleware.js';
+import { deleteResidentAccount, getResidentDetails, updateResidentDetails } from '../Controllers/residentController.js';
+
 
 const router = express.Router();
 
-// Route to get a resident's profile by ID (protected by authMiddleware)
-router.get('/profile/:id', authMiddleware, getResidentProfile);
+/* Get resident details */
+router.get( 
+    "/profile", 
+    authMiddleware,
+    roleMiddleware(["resident"]),
+    getResidentDetails
+  );
 
-// Route to create a new resident 
-router.post('/create', authMiddleware, roleMiddleware('resident'), createResident);
+/* Update resident details */
+router.put("/profile/edit", authMiddleware, roleMiddleware(["resident"]), updateResidentDetails);
 
-// Route to update a resident's profile by ID 
-router.put('/update/:id', authMiddleware, roleMiddleware('resident'), updateResidentProfile);
-
-// Route to get all residents
-router.get('/getAll', authMiddleware, roleMiddleware('admin'), getAllResidents);
-
+/* Delete Resident Account */
+router.delete("/delete-account", authMiddleware, roleMiddleware(["admin"]), deleteResidentAccount);
 export default router;

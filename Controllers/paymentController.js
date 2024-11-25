@@ -1,83 +1,142 @@
-import paypal, { payment } from "paypal-rest-sdk";
-import connectDb from './../Database/dbConfig';
+import Billing from "../Models/billingSchema.js";
+import Payment from "../Models/paymentSchema.js";
 
-// Configure paypal sdk
-paypal.configure({
-  mode: process.env.PAYPAL_MODE,
-  client_id: process.env.PAYPAL_CLIENT_ID,
-  client_secret: process.env.PAYPAL_SECRET,
-});
-
-// Create a Payment
-export const createPayment = async (req, res) => {
+// Create a payment record (useful for logging pending or initiated payments)
+export const createPaymentRecord = async (req, res) => {
   try {
-    const { total, currency } = req.body;
+    const { billingId, paymentMethod, amount, transactionId } = req.body;
 
-    const createPaymentJson = {
-      intent: "rent",
-      payer: {
-        payment_method: "paypal",
-      },
-      tranacrions: [
-        {
-          amount: {
-            total,
-            currency,
-          },
-        },
-      ],
+    // Validate that the associated billing record exists
+    const billing = await Billing.findById(billingId);
+    if (!billing) {
+      return res.status(404).json({ message: "Billing record not found" });
+    }
 
-      redirect_urls: {
-        return_url: "http://localhost:5000/api/paypal/success",
-        cancel_url: "http://localhost:5000/api/paypal/cancel",
-      },
-    };
-
-    paypal.payment.create(createPaymentJson, (error, payment) => {
-      if (error) {
-        console.log(error);
-        return res.status(500).json({ message: "Error creating payment" });
-      }
-      const approvalUrl = payment.links.find(
-        (link) => link.rel === "approval_url"
-      ).href;
-      res.status(200).json({ approvalUrl });
+    // Create new payment record
+    const payment = new Payment({
+      billingId,
+      paymentMethod,
+      amount,
+      transactionId,
+      paymentStatus: "pending",
     });
+
+    await payment.save();
+    res.status(201).json({ message: "Payment record created successfully", payment });
   } catch (error) {
-    console.error("Error creating payment:", error);
-    res.status(500).json({ error: "Internal Server Error" });
+    console.error(error);
+    res.status(500).json({ message: "Error creating payment record" });
   }
 };
 
-// Handle Successful Payment
+// Handle successful payment
 export const successPayment = async (req, res) => {
   try {
-    const { paymentId, PayerID } = req.query;
+    const { paymentId } = req.body;
 
-    const executePaymentJson = {
-      payer_id: PayerID,
-    };
+    const payment = await Payment.findById(paymentId);
+    if (!payment) {
+      return res.status(404).json({ message: "Payment record not found" });
+    }
 
-    paypal.payment.execute(paymentId, executePaymentJson, (error, payment) => {
-      if (error) {
-        console.log(error);
-        return res.status(500).json({ message: "Error creating payment" });
-      }
+    // Update the payment record to 'completed'
+    payment.paymentStatus = "success";
+    await payment.save();
 
-      res
-        .status(200)
-        .json({ message: "Payment executed successfully", data: payment });
-    });
+    // Update billing record to reflect successful payment
+    const billingRecord = await Billing.findById(payment.billingId);
+    billingRecord.amountPaid += payment.amount;
+    billingRecord.paymentStatus = "paid"; // Update payment status
+    await billingRecord.save();
+
+    res.status(200).json({ message: "Payment completed successfully", payment });
   } catch (error) {
-    console.error("Error handling payment success:", error);
-    res.status(500).json({ error: "Internal Server Error" });
+    console.error(error);
+    res.status(500).json({ message: "Error processing payment success" });
   }
 };
 
+// Get all payments for the logged-in user
+export const getUserPayments = async (req, res) => {
+  try {
+    const payments = await Payment.find({ user: req.user._id }).populate("billingId");
+    res.status(200).json({ payments });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: "Error fetching user payments" });
+  }
+};
 
+// Get all payments (Admin only)
+export const getAllPayments = async (req, res) => {
+  try {
+    const payments = await Payment.find().populate("user", "name email").populate("billingId");
+    res.status(200).json({ payments });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: "Error fetching all payments" });
+  }
+};
 
-// Handle Cancelled Payment
+// Process a refund
+export const processRefund = async (req, res) => {
+  const { paymentId, refundAmount, refundTransactionId } = req.body;
 
-export const cancelPayment = (req, res) => {
-    res.status(400).json({ message: "Payment cancelled by the user" });
-}
+  try {
+    const paymentRecord = await Payment.findById(paymentId);
+    if (!paymentRecord) {
+      return res.status(404).json({ message: "Payment record not found" });
+    }
+
+    if (paymentRecord.refundStatus === "completed") {
+      return res.status(400).json({ message: "Refund already processed" });
+    }
+
+    // Update payment details
+    paymentRecord.refundAmount = refundAmount;
+    paymentRecord.refundTransactionId = refundTransactionId;
+    paymentRecord.refundStatus = "initiated";
+    await paymentRecord.save();
+
+    // Update billing details
+    const billingRecord = await Billing.findById(paymentRecord.billingId);
+    billingRecord.refundAmount += refundAmount;
+    billingRecord.refundStatus = "initiated";
+    await billingRecord.save();
+
+    res.status(200).json({ message: "Refund initiated successfully", paymentRecord });
+  } catch (error) {
+    console.error("Error processing refund:", error);
+    res.status(500).json({ message: "Error processing refund" });
+  }
+};
+
+// Complete the refund process (mark as completed)
+export const completeRefund = async (req, res) => {
+  const { paymentId } = req.body;
+
+  try {
+    const paymentRecord = await Payment.findById(paymentId);
+    if (!paymentRecord) {
+      return res.status(404).json({ message: "Payment record not found" });
+    }
+
+    if (paymentRecord.refundStatus !== "initiated") {
+      return res.status(400).json({ message: "Refund is not initiated or already completed" });
+    }
+
+    // Update refund status to 'completed'
+    paymentRecord.refundStatus = "completed";
+    await paymentRecord.save();
+
+    // Update the billing record
+    const billingRecord = await Billing.findById(paymentRecord.billingId);
+    billingRecord.refundStatus = "completed";
+    await billingRecord.save();
+
+    res.status(200).json({ message: "Refund completed successfully", paymentRecord });
+  } catch (error) {
+    console.error("Error completing refund:", error);
+    res.status(500).json({ message: "Error completing refund" });
+  }
+};

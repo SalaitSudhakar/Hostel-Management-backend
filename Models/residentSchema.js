@@ -1,37 +1,63 @@
-import mongoose from 'mongoose';
+import mongoose from "mongoose";
 
-const residentSchema = new mongoose.Schema({
-  user: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'User',
+const residentSchema = new mongoose.Schema(
+  {
+    name: {
+      type: String,
+      required: true,
+    },
+    email: {
+      type: String,
+      required: true,
+      unique: true,
+    },
+    phoneNumber: {
+      type: String,
+      required: true,
+    },
+    password: {
+      type: String,
+      required: true,
+    },
+    token: {
+      type: String,
+    },
+    roomId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "room",
+    },
+    emergencyContact: {
+      name: { type: String },
+      phoneNumber: { type: String },
+      relationship: { type: String },
+    },
+    address: {
+      type: String,
+    },
+    status: {
+      type: String,
+      enum: ["resident", "non resident"],
+      default: "non resident"
+    },
+    checkInDate: {
+      type: Date,
+    },
+    checkOutDate: {
+      type: Date,
+      default: null,
+    },
+    billingHistory: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "billing",
+      },
+    ],
   },
-  room: { 
-    type: mongoose.Schema.Types.ObjectId, 
-    ref: 'Room', 
-    required: true, 
-  },
-  emergencyContact: {
-    name: { type: String },
-    phone: { type: String },
-  },
-  checkInDate: { type: Date, required: true },
-  checkOutDate: {
-    type: Date,
-    default: null,
-  },
-  billingHistory: [{
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'Billing',
-  }],
-  status: {
-    type: String,
-    enum: ['active', 'checked-out', 'inactive'],
-    default: 'active',
-  },
-}, { timestamps: true });
+  {
+    timestamps: true,
+  }
+);
 
-residentSchema.index({ email: 1 }); // Indexing for faster search
-
-const Resident = mongoose.model('Resident', residentSchema);
+const Resident = mongoose.model("resident", residentSchema);
 
 export default Resident;

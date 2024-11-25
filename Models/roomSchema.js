@@ -5,40 +5,56 @@ const roomSchema = new mongoose.Schema(
     roomNumber: { type: String, required: true, unique: true, index: true },
     roomType: {
       type: String,
-      enum: ["Single", "Double", "Quad"],
+      enum: ["Single", "Double", "Triple", "Quad"],
       required: true,
     },
+    images: [{
+        type: String,
+        required: true,
+    }],
     price: { type: Number, required: true, min: 0 },
     isAvailable: { type: Boolean, default: true },
     capacity: {
       type: Number,
+      required: true,
       min: 1,
       max: 4,
       default: 1,
     },
-    bedRemaining: {
-      type: Number,
-    },
-    residents: {
-      type: Number,
-      validate: {
-        validator: function (value) {
-          return value <= this.capacity;
-        },
-        message: "Room capacity exceeded",
-      },
-      default: 0,
-    },
-    resident: { type: mongoose.Schema.Types.ObjectId, ref: "Resident" },
-    amenities: [{ type: String }],
+    bedRemaining: { type: Number },
+    residents: [
+      { type: mongoose.Schema.Types.ObjectId, ref: "Resident" },
+    ],
     residentHistory: [
       { type: mongoose.Schema.Types.ObjectId, ref: "Resident" },
     ],
-    isDeleted: { type: Boolean, default: false },
+    amenities: [{ type: String }],
+    roomDescription: { type: String, required: true },
+    images: [{ type: String }],
+    bookingDates: {
+      startDate: { type: Date },
+      endDate: { type: Date },
+    },
+    roomStatus: {
+      type: String,
+      enum: ["Available", "Under Maintenance", "Occupied"],
+      default: "Available",
+    },
+    discount: { type: Number, default: 0, min: 0 },
+    feedback: {
+      rating: {
+        type: Number,
+        min: 0,
+        max: 10
+      },
+      comment: { type: String },
+      date: { type: Date, default: Date.now }
+    }
+   
   },
   { timestamps: true }
 );
 
-const Room =  mongoose.model("Room", roomSchema);
+const Room = mongoose.model("Room", roomSchema);
 
 export default Room;

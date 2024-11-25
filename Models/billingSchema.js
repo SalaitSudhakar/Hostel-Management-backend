@@ -7,16 +7,9 @@ const billingSchema = new mongoose.Schema(
       ref: "Resident",
       required: true,
     },
-    room: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "Room",
-      required: true,
-    },
+    room: { type: mongoose.Schema.Types.ObjectId, ref: "Room", required: true },
     billingPeriod: {
-      startDate: {
-        type: Date,
-        required: true,
-      },
+      startDate: { type: Date, required: true },
       endDate: { type: Date, required: true },
     },
     amountDue: { type: Number, required: true },
@@ -29,10 +22,16 @@ const billingSchema = new mongoose.Schema(
     },
     serviceCharge: { type: Number, required: true },
     lateFee: { type: Number, default: 0 },
+    refundAmount: { type: Number, default: 0 },
+    refundStatus: {
+      type: String,
+      enum: ["none", "initiated", "completed"],
+      default: "none",
+    },
   },
   { timestamps: true }
 );
 
-const BIlling =  mongoose.model("Billing", billingSchema);
+const Billing = mongoose.model("Billing", billingSchema);
 
-export default BIlling;
+export default Billing;

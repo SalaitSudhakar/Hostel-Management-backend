@@ -4,7 +4,7 @@ import Resident from "../Models/residentSchema.js";
 // View all rooms with resident details
 export const getRoomsWithResidents = async (req, res) => {
   try {
-    const rooms = await Room.find().populate("resident",  "name, email, phoneNumber, emergencyContact, -password");
+    const rooms = await Room.find().populate("resident",  "name, email, phoneNumber, emergencyContact");
     res.status(200).json({ success: true, data: rooms });
   } catch (error) {
     res.status(500).json({
@@ -59,9 +59,11 @@ export const assignRoomToResident = async (req, res) => {
       });
     }
 
-    room.resident = residentId;
-    room.bedRemaining = room.capcity - room.residents;
-    room.isAvailable = false;
+    room.residents.push(residentId);
+    room.bedRemaining = room.capacity - room.residents.length;
+    if (room.bedRemaining === 0) {
+      room.isAvailable = false;
+    };
     await room.save();
 
     resident.room = room._id;
@@ -77,69 +79,53 @@ export const assignRoomToResident = async (req, res) => {
   }
 };
 
-// Update room availability
-export const updateRoomAvailability = async (req, res) => {
-  const { roomNumber, availability } = req.body;
-
-  if (!roomNumber || availability === undefined) {
-    return res.status(400).json({
-      success: false,
-      message: "Room number and availability status are required",
-    });
-  }
-
-  try {
-    const room = await Room.findOne({ roomNumber });
-    if (!room) return res.status(404).json({ success: false, message: "Room not found" });
-
-    room.isAvailable = availability;
-
-    if (availability) {
-      room.resident = null; // Clear resident when marking room available
-    }
-
-    await room.save();
-
-    res.status(200).json({
-      success: true,
-      message: "Room availability updated successfully",
-      data: room,
-    });
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: "Failed to update room availability",
-      error: error.message,
-    });
-  }
-};
 
 // Add a new room (Admin only)
-export const addRoom = async (req, res) => {
-  const { roomNumber, roomType, price, isAvailable, amenities } = req.body;
+export const createRoom = async (req, res) => {
+  const { roomNumber, roomType, price, capacity, amenities, roomDescription, discount } = req.body;
+ 
+  console.log(req.body)
+  let imageUrls = [];
 
-  if (!roomNumber || !roomType || !price || !amenities) {
-    return res.status(400).json({
+  // Handle image upload (if file uploaded)
+if (req.files && req.files.length > 0) {
+  req.files.forEach((file) => {
+    imageUrls.push(file.path);  // Push each image's path to imageUrls array
+  });
+}
+
+  if (!roomNumber || !roomType || !price || !amenities || !capacity || !roomDescription || !discount) { 
+      console.log("Room number, room type, and price, capacity, amenities, roomDescription, discount are required")
+      return res.status(400).json({
       success: false,
-      message: "Room number, room type, and price are required",
+      message: "Room number, room type, and price, capacity, amenities, roomDescription, discount are required",
     });
   }
 
   try {
     const existingRoom = await Room.findOne({ roomNumber });
     if (existingRoom) {
+      console.log("ROom Number already exists");
       return res.status(400).json({
+          
         success: false,
         message: "Room number already exists",
       });
     }
 
     const newRoom = new Room({
-      roomNumber,
-      roomType,
-      price,
-      amenities,
-      isAvailable: isAvailable !== undefined ? isAvailable : true,
+    roomNumber,
+    roomType,
+    price,
+    capacity,
+    amenities: amenities.split(","),
+    roomDescription,
+    discount,
+    images: imageUrls,
+    isAvailable: true, // Initially available
+    roomStatus: "Available",
+    isAvailable: true,
+    bedRemaining: capacity,
     });
 
     await newRoom.save();
@@ -149,6 +135,7 @@ export const addRoom = async (req, res) => {
       data: newRoom,
     });
   } catch (error) {
+      console.log(error)
     res.status(500).json({
       success: false,
       message: "Error adding new room",
@@ -156,6 +143,8 @@ export const addRoom = async (req, res) => {
     });
   }
 };
+
+
 
 // Fetch available rooms
 export const getAvailableRooms = async (req, res) => {
