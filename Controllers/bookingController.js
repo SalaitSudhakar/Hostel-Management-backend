@@ -32,7 +32,7 @@ const generateBookingReference = () => {
 // Helper function to calculate the total price (mock implementation)
 const calculateTotalPrice = async (room, totalNights, guests) => {
   const basePrice = room.price || 4000; // Default price if not set
-  const totalPrice = basePrice * totalNights; // Customize further if needed
+  const totalPrice = basePrice * (totalNights + guests.adults + guests.children + (guests.infantsUnder2 / 2)); 
   return { totalPrice, priceBreakdown: { nights: totalNights, basePrice } };
 };
 
@@ -114,7 +114,7 @@ export const createBooking = async (req, res) => {
       checkOutDate: parsedCheckOut,
       guests,
       numberOfRooms: 1,
-      totalPrice,
+      totalPrice: finalTotalPrice,
       priceBreakdown,
       bookingStatus: "pending",
       payment: { status: "pending" },
@@ -122,6 +122,13 @@ export const createBooking = async (req, res) => {
 
     await newBooking.save({ session });
 
+    // update resident details
+    resident.room = roomId
+    resident.status = "resident";
+    resident.checkInDate = parsedCheckIn; 
+    resident.checkOutDate = parsedCheckOut;
+
+    await resident.save({ session });
     // Update room details
     const totalGuests = guests.adults + guests.children + guests.infantsUnder2;
     room.bedRemaining -= totalGuests;

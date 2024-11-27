@@ -58,14 +58,6 @@ const BookingSchema = new mongoose.Schema({
     required: true
   },
 
-  // Number of Rooms
-  numberOfRooms: {
-    type: Number,
-    required: true,
-    default: 1,
-    min: 1
-  },
-
   // Pricing Information
   totalPrice: {
     type: Number,

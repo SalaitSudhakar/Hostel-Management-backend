@@ -1,5 +1,5 @@
 import paypal from '@paypal/checkout-server-sdk';
-import Booking from '../models/bookingSchema.js';
+import Booking from '../Models/bookingSchema.js';
 import mongoose from 'mongoose';
 
 // PayPal Client Setup

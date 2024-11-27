@@ -24,6 +24,7 @@ app.use("/api/auth", userRoute);
 app.use("/api/resident", residentRoute);
 app.use("/api/room", roomRoute)
 app.use('/api/booking', bookingRoute)
+app.use('/api/payment', paymentRoutes);
 
 const port = process.env.PORT || 4000;
 
