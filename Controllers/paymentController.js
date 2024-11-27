@@ -1,142 +1,136 @@
-import Billing from "../Models/billingSchema.js";
-import Payment from "../Models/paymentSchema.js";
+import paypal from '@paypal/checkout-server-sdk';
+import Booking from '../models/bookingSchema.js';
+import mongoose from 'mongoose';
 
-// Create a payment record (useful for logging pending or initiated payments)
-export const createPaymentRecord = async (req, res) => {
+// PayPal Client Setup
+const environment = new paypal.core.SandboxEnvironment(
+  process.env.PAYPAL_CLIENT_ID, 
+  process.env.PAYPAL_CLIENT_SECRET
+);
+const client = new paypal.core.PayPalHttpClient(environment);
+
+// Create PayPal Order
+export const createPayPalOrder = async (req, res) => {
   try {
-    const { billingId, paymentMethod, amount, transactionId } = req.body;
+    const { bookingId } = req.body;
 
-    // Validate that the associated billing record exists
-    const billing = await Billing.findById(billingId);
-    if (!billing) {
-      return res.status(404).json({ message: "Billing record not found" });
+    // Validate booking
+    const booking = await Booking.findById(bookingId);
+    if (!booking) {
+      return res.status(404).json({ message: "Booking not found" });
     }
 
-    // Create new payment record
-    const payment = new Payment({
-      billingId,
-      paymentMethod,
-      amount,
-      transactionId,
-      paymentStatus: "pending",
+    // Create PayPal order
+    const request = new paypal.orders.OrdersCreateRequest();
+    request.prefer('return=representation');
+    request.requestBody({
+      intent: 'CAPTURE',
+      purchase_units: [{
+        amount: {
+          currency_code: 'USD',
+          value: booking.totalPrice.toFixed(2)
+        },
+        reference_id: booking.bookingReference
+      }]
     });
 
-    await payment.save();
-    res.status(201).json({ message: "Payment record created successfully", payment });
+    const order = await client.execute(request);
+
+    res.status(201).json({
+      orderID: order.result.id
+    });
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: "Error creating payment record" });
+    console.error('PayPal order creation error:', error);
+    res.status(500).json({ message: "Failed to create PayPal order" });
   }
 };
 
-// Handle successful payment
-export const successPayment = async (req, res) => {
-  try {
-    const { paymentId } = req.body;
+// Capture PayPal Payment
+export const capturePayPalPayment = async (req, res) => {
+  const session = await mongoose.startSession();
+  session.startTransaction();
 
-    const payment = await Payment.findById(paymentId);
-    if (!payment) {
-      return res.status(404).json({ message: "Payment record not found" });
+  try {
+    const { orderID, bookingId } = req.body;
+
+    // Verify and capture the order
+    const request = new paypal.orders.OrdersCaptureRequest(orderID);
+    request.requestBody({});
+    const capture = await client.execute(request);
+
+    // Find and update booking
+    const booking = await Booking.findById(bookingId).session(session);
+    if (!booking) {
+      throw new Error("Booking not found");
     }
 
-    // Update the payment record to 'completed'
-    payment.paymentStatus = "success";
-    await payment.save();
+    // Update booking payment details
+    booking.payment.status = 'paid';
+    booking.payment.transactionId = 
+      capture.result.purchase_units[0].payments.captures[0].id;
+    booking.payment.paymentMethod = 'PayPal';
+    booking.payment.paidAt = new Date();
+    booking.bookingStatus = 'confirmed';
 
-    // Update billing record to reflect successful payment
-    const billingRecord = await Billing.findById(payment.billingId);
-    billingRecord.amountPaid += payment.amount;
-    billingRecord.paymentStatus = "paid"; // Update payment status
-    await billingRecord.save();
+    await booking.save({ session });
 
-    res.status(200).json({ message: "Payment completed successfully", payment });
+    await session.commitTransaction();
+    session.endSession();
+
+    res.status(200).json({ 
+      message: "Payment successful", 
+      bookingStatus: booking.bookingStatus 
+    });
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: "Error processing payment success" });
+    await session.abortTransaction();
+    session.endSession();
+    console.error('PayPal payment capture error:', error);
+    res.status(400).json({ message: error.message });
   }
 };
 
-// Get all payments for the logged-in user
-export const getUserPayments = async (req, res) => {
-  try {
-    const payments = await Payment.find({ user: req.user._id }).populate("billingId");
-    res.status(200).json({ payments });
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: "Error fetching user payments" });
-  }
-};
-
-// Get all payments (Admin only)
-export const getAllPayments = async (req, res) => {
-  try {
-    const payments = await Payment.find().populate("user", "name email").populate("billingId");
-    res.status(200).json({ payments });
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: "Error fetching all payments" });
-  }
-};
-
-// Process a refund
-export const processRefund = async (req, res) => {
-  const { paymentId, refundAmount, refundTransactionId } = req.body;
+// Refund PayPal Payment
+export const refundPayPalPayment = async (req, res) => {
+  const session = await mongoose.startSession();
+  session.startTransaction();
 
   try {
-    const paymentRecord = await Payment.findById(paymentId);
-    if (!paymentRecord) {
-      return res.status(404).json({ message: "Payment record not found" });
+    const { bookingId } = req.body;
+    const booking = await Booking.findById(bookingId).session(session);
+
+    if (!booking || booking.payment.status !== 'paid') {
+      throw new Error("Cannot refund this booking");
     }
 
-    if (paymentRecord.refundStatus === "completed") {
-      return res.status(400).json({ message: "Refund already processed" });
-    }
+    // Create refund request
+    const request = new paypal.payments.RefundsCreateRequest(
+      booking.payment.transactionId
+    );
+    request.requestBody({
+      amount: {
+        currency_code: 'USD',
+        value: booking.totalPrice.toFixed(2)
+      }
+    });
 
-    // Update payment details
-    paymentRecord.refundAmount = refundAmount;
-    paymentRecord.refundTransactionId = refundTransactionId;
-    paymentRecord.refundStatus = "initiated";
-    await paymentRecord.save();
+    const refund = await client.execute(request);
 
-    // Update billing details
-    const billingRecord = await Billing.findById(paymentRecord.billingId);
-    billingRecord.refundAmount += refundAmount;
-    billingRecord.refundStatus = "initiated";
-    await billingRecord.save();
+    // Update booking status
+    booking.payment.status = 'refunded';
+    booking.bookingStatus = 'cancelled';
+    await booking.save({ session });
 
-    res.status(200).json({ message: "Refund initiated successfully", paymentRecord });
+    await session.commitTransaction();
+    session.endSession();
+
+    res.status(200).json({ 
+      message: "Refund processed successfully",
+      refundId: refund.result.id 
+    });
   } catch (error) {
-    console.error("Error processing refund:", error);
-    res.status(500).json({ message: "Error processing refund" });
-  }
-};
-
-// Complete the refund process (mark as completed)
-export const completeRefund = async (req, res) => {
-  const { paymentId } = req.body;
-
-  try {
-    const paymentRecord = await Payment.findById(paymentId);
-    if (!paymentRecord) {
-      return res.status(404).json({ message: "Payment record not found" });
-    }
-
-    if (paymentRecord.refundStatus !== "initiated") {
-      return res.status(400).json({ message: "Refund is not initiated or already completed" });
-    }
-
-    // Update refund status to 'completed'
-    paymentRecord.refundStatus = "completed";
-    await paymentRecord.save();
-
-    // Update the billing record
-    const billingRecord = await Billing.findById(paymentRecord.billingId);
-    billingRecord.refundStatus = "completed";
-    await billingRecord.save();
-
-    res.status(200).json({ message: "Refund completed successfully", paymentRecord });
-  } catch (error) {
-    console.error("Error completing refund:", error);
-    res.status(500).json({ message: "Error completing refund" });
+    await session.abortTransaction();
+    session.endSession();
+    console.error('PayPal refund error:', error);
+    res.status(400).json({ message: error.message });
   }
 };

@@ -16,8 +16,6 @@ export const authMiddleware = async (req, res, next) => {
 
     // Verify and decode the token
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
-  
-    
 
     let user;
     switch (decoded.role) {

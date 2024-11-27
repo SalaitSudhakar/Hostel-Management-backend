@@ -5,7 +5,7 @@ import connectDb from './Database/dbConfig.js';
 import userRoute from './Routes/userRoutes.js';
 import residentRoute from './Routes/residentRoutes.js';
 import roomRoute from './Routes/roomRoutes.js';
-
+import bookingRoute from './Routes/bookingRoutes.js';
 
 dotenv.config();
 
@@ -23,11 +23,10 @@ app.get("/", (req, res) => {
 app.use("/api/auth", userRoute);
 app.use("/api/resident", residentRoute);
 app.use("/api/room", roomRoute)
-
-
+app.use('/api/booking', bookingRoute)
 
 const port = process.env.PORT || 4000;
 
 app.listen(port, () => {
-    console.log("server is started and running on the port")
+    console.log(`server is started and running on the port`)
 })

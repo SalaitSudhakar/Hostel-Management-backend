@@ -121,7 +121,13 @@ export const loginUser = async (req, res) => {
     user.token = token;
     await user.save();
 
-    res.status(200).json({ message: "Login successful", token, role });
+    let residentStatus = null;
+    if (role === "resident") {
+      residentStatus = user.status;
+    }
+
+    /* response */
+    res.status(200).json({ message: "Login successful", token, role, residentStatus });
   } catch (error) {
     res.status(500).json({ message: "Error logging in" });
   }

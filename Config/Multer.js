@@ -5,7 +5,7 @@ import cloudinary from "./Cloudinary.js";
 const storage = new CloudinaryStorage({
     cloudinary: cloudinary,
     params: {
-        folder: "BlogApp",
+        folder: "Hotel Management",
         allowedFormats: ["jpg", "png", "jpeg"],
     },
 })

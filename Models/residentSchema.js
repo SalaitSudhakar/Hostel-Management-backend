@@ -36,7 +36,7 @@ const residentSchema = new mongoose.Schema(
     },
     status: {
       type: String,
-      enum: ["resident", "non resident"],
+      enum: ["active", "non resident"],
       default: "non resident"
     },
     checkInDate: {
