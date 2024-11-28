@@ -55,7 +55,7 @@ export const createRoom = async (req, res) => {
       discount,
       images: imageUrls,
       isAvailable: true, // Initially available
-      roomStatus: "Available",
+      roomStatus: "available",
       bedRemaining: capacity,
     });
 

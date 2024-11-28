@@ -3,6 +3,7 @@ import Booking from "../Models/bookingSchema.js";
 import Room from "../Models/roomSchema.js";
 import Resident from "../Models/residentSchema.js";
 import sendEmail from "../Utils/mailer.js";
+import MaintenanceRequest from "../Models/maintenanceRequestSchema.js";
 
 // Helper function to validate booking dates
 const validateBookingDates = (checkInDate, checkOutDate) => {
@@ -30,10 +31,22 @@ const generateBookingReference = () => {
 };
 
 // Helper function to calculate the total price (mock implementation)
-const calculateTotalPrice = async (room, totalNights, guests) => {
+const calculateTotalPrice = async (room, totalNights, guests, maintenanceCharge) => {
   const basePrice = room.price || 4000; // Default price if not set
-  const totalPrice = basePrice * (totalNights + guests.adults + guests.children + (guests.infantsUnder2 / 2)); 
-  return { totalPrice, priceBreakdown: { nights: totalNights, basePrice } };
+  const totalRoomCost = basePrice * totalNights;
+  const tax = totalRoomCost * 0.18; // Assuming 18% GST
+  const totalPrice = totalRoomCost + maintenanceCharge + tax;
+
+  const priceBreakdown = {
+    nights: totalNights,
+    basePrice: room.price || basePrice,
+    roomCost: totalRoomCost,
+    maintenanceCharge,
+    tax,
+    totalPrice,
+  };
+
+  return { totalPrice, priceBreakdown };
 };
 
 // Create a new booking
@@ -94,10 +107,11 @@ export const createBooking = async (req, res) => {
     const totalNights = Math.ceil(
       (parsedCheckOut.getTime() - parsedCheckIn.getTime()) / (1000 * 60 * 60 * 24)
     );
-    const { totalPrice, priceBreakdown } = await calculateTotalPrice(room, totalNights, guests);
+      // Fetch the maintenance charge
+    const maintenanceCharge = await getMaintenanceCharge();
+    const { totalPrice, priceBreakdown } = await calculateTotalPrice(room, totalNights, guests, maintenanceCharge);
 
-     // Fetch the maintenance charge
-     const maintenanceCharge = await getMaintenanceCharge(roomId);
+     
 
      // Add maintenance charge to the total price
      const finalTotalPrice = totalPrice + maintenanceCharge;
@@ -114,8 +128,13 @@ export const createBooking = async (req, res) => {
       checkOutDate: parsedCheckOut,
       guests,
       numberOfRooms: 1,
-      totalPrice: finalTotalPrice,
-      priceBreakdown,
+      priceBreakdown: {
+        basePrice: priceBreakdown.basePrice,
+        roomCost: priceBreakdown.roomCost,
+        maintenanceCharge,
+        tax: priceBreakdown.tax,
+        totalPrice: finalTotalPrice,
+      },
       bookingStatus: "pending",
       payment: { status: "pending" },
     });
@@ -123,7 +142,7 @@ export const createBooking = async (req, res) => {
     await newBooking.save({ session });
 
     // update resident details
-    resident.room = roomId
+    resident.room = roomId; 
     resident.status = "resident";
     resident.checkInDate = parsedCheckIn; 
     resident.checkOutDate = parsedCheckOut;
@@ -132,6 +151,7 @@ export const createBooking = async (req, res) => {
     // Update room details
     const totalGuests = guests.adults + guests.children + guests.infantsUnder2;
     room.bedRemaining -= totalGuests;
+    room.status = 'reserved'
     room.isAvailable = room.bedRemaining > 0;
     await room.save({ session });
 

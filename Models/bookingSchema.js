@@ -58,22 +58,29 @@ const BookingSchema = new mongoose.Schema({
     required: true
   },
 
-  // Pricing Information
-  totalPrice: {
-    type: Number,
-    required: true,
-    min: 0
-  },
+ 
   priceBreakdown: {
     basePrice: {
       type: Number,
       min: 0
     },
-    taxes: {
+    totalNights: {
       type: Number,
       min: 0
     },
-    fees: {
+    roomCost: {
+      type: Number,
+      min: 0
+    },
+    tax: {
+      type: Number,
+      min: 0
+    },
+    maintenanceCharge: {
+      type: Number,
+      min: 0
+    },
+    totalPrice: {
       type: Number,
       min: 0
     }
@@ -82,7 +89,7 @@ const BookingSchema = new mongoose.Schema({
   // Booking Status
   bookingStatus: {
     type: String,
-    enum: ['pending', 'confirmed', 'cancelled', 'completed'],
+    enum: ['pending', 'confirmed'],
     default: 'pending'
   },
 

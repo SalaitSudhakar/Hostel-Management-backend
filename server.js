@@ -6,6 +6,13 @@ import userRoute from './Routes/userRoutes.js';
 import residentRoute from './Routes/residentRoutes.js';
 import roomRoute from './Routes/roomRoutes.js';
 import bookingRoute from './Routes/bookingRoutes.js';
+import paymentRoute from './Routes/paymentRoutes.js';
+import maintenanceRequestRoute from './Routes/maintenanceRequestRoutes.js';
+import staffRoute from './Routes/staffRoutes.js';
+import expenseRoute from './Routes/expenseRoutes.js'
+import revenueRoute from './Routes/revenueRoutes.js'
+import roomOccupancyRoute from './Routes/roomOccupancyRoutes.js'
+import downloadReportRoute from './Routes/downloadReportRoutes.js'
 
 dotenv.config();
 
@@ -24,7 +31,13 @@ app.use("/api/auth", userRoute);
 app.use("/api/resident", residentRoute);
 app.use("/api/room", roomRoute)
 app.use('/api/booking', bookingRoute)
-app.use('/api/payment', paymentRoutes);
+app.use('/api/payment', paymentRoute);
+app.use('/api/maintenance-request', maintenanceRequestRoute);  
+app.use('/api/staff', staffRoute);  
+app.use('/api/expense', expenseRoute); 
+app.use('/api/revenue', revenueRoute);
+app.use('/api/room-occupancy', roomOccupancyRoute)
+app.use('/api/download-report', downloadReportRoute); 
 
 const port = process.env.PORT || 4000;
 

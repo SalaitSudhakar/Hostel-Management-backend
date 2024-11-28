@@ -22,10 +22,11 @@ const residentSchema = new mongoose.Schema(
     token: {
       type: String,
     },
-    roomId: {
+    room: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: "room",
+      ref: "Room", // Reference to Room schema
     },
+
     emergencyContact: {
       name: { type: String },
       phoneNumber: { type: String },
@@ -37,7 +38,7 @@ const residentSchema = new mongoose.Schema(
     status: {
       type: String,
       enum: ["active", "non resident"],
-      default: "non resident"
+      default: "non resident",
     },
     checkInDate: {
       type: Date,
@@ -58,6 +59,6 @@ const residentSchema = new mongoose.Schema(
   }
 );
 
-const Resident = mongoose.model("resident", residentSchema);
+const Resident = mongoose.model("Resident", residentSchema);
 
 export default Resident;
