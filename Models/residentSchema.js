@@ -25,6 +25,7 @@ const residentSchema = new mongoose.Schema(
     room: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Room", // Reference to Room schema
+      default: null,
     },
 
     emergencyContact: {

@@ -1,5 +1,5 @@
 import express from "express";
-import {createBooking, getBookingByReference, cancelBooking} from "../Controllers/bookingController.js";
+import {createBooking, cancelBooking, getBookingByReference} from "../Controllers/bookingController.js";
 import {
   authMiddleware,
   roleMiddleware

@@ -54,7 +54,7 @@ export const createMaintenanceRequest = async (req, res) => {
       issueTitle,
       issueDescription,
       priority,
-      charge: charge[priority],
+      charge: charge[priority] ,
       status: "Pending",
     });
 

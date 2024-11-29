@@ -6,19 +6,29 @@ import sendEmail from "../Utils/mailer.js";
 import MaintenanceRequest from "../Models/maintenanceRequestSchema.js";
 
 // Helper function to validate booking dates
+const normalizeDate = (date) => {
+  const d = new Date(date);
+  d.setHours(0, 0, 0, 0); // Set to midnight
+  return d;
+};
+
 const validateBookingDates = (checkInDate, checkOutDate) => {
+  checkInDate = normalizeDate(checkInDate);
+  checkOutDate = normalizeDate(checkOutDate);
   return (
     checkInDate instanceof Date &&
     checkOutDate instanceof Date &&
     checkInDate < checkOutDate &&
-    checkInDate >= new Date()
+    checkInDate >= new Date() // Ensure the date is not in the past
   );
 };
 
-const getMaintenanceCharge = async () => {
+const getMaintenanceCharge = async (req) => {
   const residentId = req.user._id;
   // Find the room's maintenance charge or calculate it based on other data
-  const maintenanceRequest = await MaintenanceRequest.findOne({ resident: residentId });
+  const maintenanceRequest = await MaintenanceRequest.findOne({
+    resident: residentId,
+  });
   if (maintenanceRequest) {
     return maintenanceRequest.charge || 0; // Default to 0 if no charge exists
   }
@@ -31,9 +41,17 @@ const generateBookingReference = () => {
 };
 
 // Helper function to calculate the total price (mock implementation)
-const calculateTotalPrice = async (room, totalNights, guests, maintenanceCharge) => {
+const calculateTotalPrice = async (
+  room,
+  totalNights,
+  guests,
+  maintenanceCharge
+) => {
   const basePrice = room.price || 4000; // Default price if not set
-  const totalRoomCost = basePrice * totalNights;
+  const totalRoomCost =
+    basePrice *
+    totalNights *
+    (guests.adults + guests.children + guests.infantsUnder2);
   const tax = totalRoomCost * 0.18; // Assuming 18% GST
   const totalPrice = totalRoomCost + maintenanceCharge + tax;
 
@@ -50,6 +68,7 @@ const calculateTotalPrice = async (room, totalNights, guests, maintenanceCharge)
 };
 
 // Create a new booking
+// Create a new booking
 export const createBooking = async (req, res) => {
   const session = await mongoose.startSession();
   session.startTransaction();
@@ -59,63 +78,77 @@ export const createBooking = async (req, res) => {
 
     // Validate required fields
     if (!roomId || !checkInDate || !checkOutDate || !guests) {
-      throw new Error("Missing required booking details");
+      console.log("Missing required booking details");
+      return res
+        .status(400)
+        .json({ message: "Missing required booking details" });
     }
 
     // Parse and validate dates
     const parsedCheckIn = new Date(checkInDate);
     const parsedCheckOut = new Date(checkOutDate);
     if (!validateBookingDates(parsedCheckIn, parsedCheckOut)) {
-      throw new Error("Invalid booking dates");
+      console.log("Invalid booking dates");
+      return res.status(400).json({ message: "Invalid booking dates" });
     }
 
     // Validate guest numbers
-    if (!guests.adults || guests.adults < 1 || guests.children < 0 || guests.infantsUnder2 < 0) {
-      throw new Error("Invalid guest numbers");
+    if (
+      !guests.adults ||
+      guests.adults < 1 ||
+      guests.children < 0 ||
+      guests.infantsUnder2 < 0
+    ) {
+      console.log("Invalid guest numbers");
+      return res.status(400).json({ message: "Invalid guest numbers" });
     }
 
     // Validate resident (assumes req.user._id comes from authentication middleware)
-    const residentId = req.user._id;
+    const residentId = req.user.id;
     const resident = await Resident.findById(residentId).session(session);
     if (!resident) {
-      throw new Error("Resident not found");
+      console.log("Resident not found");
+      return res.status(404).json({ message: "Resident not found" });
+    }
+    if (resident.room) {
+      console.log("Resident already has a room");
+      return res.status(400).json({ message: "Resident already has a room" });
     }
 
     // Find and validate room
     const room = await Room.findById(roomId).session(session);
     if (!room || !room.isAvailable || room.bedRemaining <= 0) {
-      throw new Error("Room is not available or has no beds remaining");
+      return res
+        .status(404)
+        .json({ message: "Room is not available or has no beds remaining" });
     }
 
-    // Check for overlapping bookings
+    // Check for overlapping bookings only on check-in date
     const existingBookings = await Booking.find({
       room: roomId,
       bookingStatus: { $ne: "cancelled" },
-      $or: [
-        {
-          checkInDate: { $lt: parsedCheckOut },
-          checkOutDate: { $gt: parsedCheckIn },
-        },
-      ],
+      checkInDate: parsedCheckIn, // Match exactly on check-in date
     }).session(session);
 
-    if (existingBookings.length > 0) {
-      throw new Error("Room is not available for the selected dates");
+    if (existingBookings.length >= room.bedRemaining) {
+      return res
+        .status(400)
+        .json({ message: "Room is already booked for the check-in date" });
     }
 
     // Calculate total price
     const totalNights = Math.ceil(
-      (parsedCheckOut.getTime() - parsedCheckIn.getTime()) / (1000 * 60 * 60 * 24)
+      (parsedCheckOut.getTime() - parsedCheckIn.getTime()) /
+        (1000 * 60 * 60 * 24)
     );
-      // Fetch the maintenance charge
-    const maintenanceCharge = await getMaintenanceCharge();
-    const { totalPrice, priceBreakdown } = await calculateTotalPrice(room, totalNights, guests, maintenanceCharge);
+    const maintenanceCharge = await getMaintenanceCharge(req);
+    const { totalPrice, priceBreakdown } = await calculateTotalPrice(
+      room,
+      totalNights,
+      guests,
+      maintenanceCharge
+    );
 
-     
-
-     // Add maintenance charge to the total price
-     const finalTotalPrice = totalPrice + maintenanceCharge;
-     
     // Generate booking reference
     const bookingReference = generateBookingReference();
 
@@ -133,7 +166,7 @@ export const createBooking = async (req, res) => {
         roomCost: priceBreakdown.roomCost,
         maintenanceCharge,
         tax: priceBreakdown.tax,
-        totalPrice: finalTotalPrice,
+        totalPrice: priceBreakdown.totalPrice,
       },
       bookingStatus: "pending",
       payment: { status: "pending" },
@@ -141,17 +174,13 @@ export const createBooking = async (req, res) => {
 
     await newBooking.save({ session });
 
-    // update resident details
-    resident.room = roomId; 
-    resident.status = "resident";
-    resident.checkInDate = parsedCheckIn; 
+    // Update resident details
+    resident.checkInDate = parsedCheckIn;
     resident.checkOutDate = parsedCheckOut;
-
     await resident.save({ session });
+
     // Update room details
-    const totalGuests = guests.adults + guests.children + guests.infantsUnder2;
-    room.bedRemaining -= totalGuests;
-    room.status = 'reserved'
+    room.residents.push(residentId);
     room.isAvailable = room.bedRemaining > 0;
     await room.save({ session });
 
@@ -160,14 +189,15 @@ export const createBooking = async (req, res) => {
     const html = `
       <h1>Booking Confirmation</h1>
       <p>Booking Reference: ${newBooking.bookingReference}</p>
-      <p>Total Price: $${newBooking.totalPrice.toFixed(2)}</p>`;
-    const text = `Booking Confirmation\nBooking Reference: ${newBooking.bookingReference}\nTotal Price: $${newBooking.totalPrice.toFixed(2)}`;
+      <p>Total Price: $${priceBreakdown.totalPrice.toFixed(2)}</p>`;
+    const text = `Booking Confirmation\nBooking Reference: ${
+      newBooking.bookingReference
+    }\nTotal Price: $${priceBreakdown.totalPrice.toFixed(2)}`;
 
     try {
       await sendEmail(resident.email, subject, html, text);
     } catch (emailError) {
       console.error("Error sending email:", emailError.message);
-      // Do not fail the booking process if email fails
     }
 
     await session.commitTransaction();
@@ -178,7 +208,7 @@ export const createBooking = async (req, res) => {
       booking: {
         id: newBooking._id,
         bookingReference: newBooking.bookingReference,
-        totalPrice: newBooking.totalPrice,
+        totalPrice: priceBreakdown.totalPrice.toFixed(2),
       },
     });
   } catch (error) {
@@ -202,7 +232,7 @@ export const getBookingByReference = async (req, res) => {
     return res.status(200).json({ booking });
   } catch (error) {
     console.error("Error fetching booking by reference:", error.message);
-    return res.status(500).json({ message: "Internal server error" });
+    res.status(500).json({ message: "Internal server error" });
   }
 };
 
@@ -212,30 +242,57 @@ export const cancelBooking = async (req, res) => {
   session.startTransaction();
 
   try {
-    const { reference } = req.params;
+    const { reference } = req.params; // Booking reference
 
-    // Find booking
-    const booking = await Booking.findOne({ bookingReference: reference }).session(session);
+
+    // Find the booking
+    const booking = await Booking.findOne({
+      bookingReference: reference,
+    }).session(session);
     if (!booking) {
-      throw new Error("Booking not found");
+      return res.status(404).json({ message: "Booking not found" });
     }
 
     if (booking.bookingStatus === "cancelled") {
-      throw new Error("Booking is already cancelled");
+      return res.status(400).json({ message: "Booking is already cancelled" });
     }
 
-    // Update booking status
+    // Find the resident
+    const residentid =  booking.resident;
+    const resident = await Resident.findById(residentid).session(session);
+    if (!resident) {
+      return res.status(404).json({ message: "Resident not found" });
+    }
+
+    const roomId = booking.room; // ObjectId reference to Room
+
+    // Find the room
+    const room = await Room.findById(roomId).session(session);
+    if (!room) {
+      return res.status(404).json({ message: "Room not found" });
+    }
+
+    // Update booking status to "cancelled"
     booking.bookingStatus = "cancelled";
     await booking.save({ session });
 
     // Update room availability
-    const room = await Room.findById(booking.room).session(session);
-    if (room) {
-      const totalGuests = booking.guests.adults + booking.guests.children + booking.guests.infantsUnder2;
-      room.bedRemaining += totalGuests;
-      room.isAvailable = true;
-      await room.save({ session });
-    }
+    const totalGuests =
+      booking.guests.adults +
+      booking.guests.children +
+      booking.guests.infantsUnder2;
+    room.bedRemaining += totalGuests;
+
+    // Remove the resident from the room's `residents` array
+    room.residents = room.residents.filter(
+      (id) => id.toString() !== residentId.toString()
+    );
+    room.isAvailable = room.residents.length < room.capacity; // Set availability based on current residents
+    await room.save({ session });
+
+    // Remove the room reference in the resident's document (set to null)
+    resident.room = null;
+    await resident.save({ session });
 
     await session.commitTransaction();
     session.endSession();
@@ -245,6 +302,6 @@ export const cancelBooking = async (req, res) => {
     await session.abortTransaction();
     session.endSession();
     console.error("Error cancelling booking:", error.message);
-    return res.status(400).json({ message: error.message });
+    return res.status(500).json({ message: error.message });
   }
 };

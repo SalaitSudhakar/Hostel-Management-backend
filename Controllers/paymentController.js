@@ -5,12 +5,15 @@ import sendEmail from "../Utils/mailer.js";
 import pdfkit from "pdfkit";
 import fs from "fs";
 import path from "path";
+import Room from '../Models/roomSchema.js';
+import Resident from '../Models/residentSchema.js';
 
 // PayPal Client Setup
 const environment = new paypal.core.SandboxEnvironment(
-  process.env.PAYPAL_CLIENT_ID, 
-  process.env.PAYPAL_CLIENT_SECRET
+  process.env.PAYPAL_CLIENT_ID,
+  process.env.PAYPAL_SECRET
 );
+
 const client = new paypal.core.PayPalHttpClient(environment);
 
 // Create PayPal Order
@@ -31,7 +34,7 @@ export const createPayPalOrder = async (req, res) => {
       intent: 'CAPTURE',
       purchase_units: [{
         amount: {
-          currency_code: 'INR',
+          currency_code: 'USD',
           value: booking.priceBreakdown.totalPrice.toFixed(2)
         },
         reference_id: booking.bookingReference
@@ -39,9 +42,9 @@ export const createPayPalOrder = async (req, res) => {
     });
 
     const order = await client.execute(request);
-
     res.status(201).json({
-      orderID: order.result.id
+      message: "PayPal order created successfully", 
+      orderId: order.result.id,
     });
   } catch (error) {
     console.error('PayPal order creation error:', error);
@@ -50,34 +53,67 @@ export const createPayPalOrder = async (req, res) => {
 };
 
 // Capture PayPal Payment
-// Capture PayPal Payment
 export const capturePayPalPayment = async (req, res) => {
   const session = await mongoose.startSession();
   session.startTransaction();
 
   try {
-    const { orderID, bookingId } = req.body;
+    const token = req.query.token;
+    const { bookingId, orderId } = req.body;
 
     // Verify and capture the order
-    const request = new paypal.orders.OrdersCaptureRequest(orderID);
+    const request = new paypal.orders.OrdersCaptureRequest(orderId);
     request.requestBody({});
     const capture = await client.execute(request);
+
+    if (capture.result.status !== "COMPLETED") {
+      return res.status(400).json({ message: "Payment not successful" });
+    }
 
     // Find and update booking
     const booking = await Booking.findById(bookingId).session(session);
     if (!booking) {
-      throw new Error("Booking not found");
+      return res.status(404).json({ message: "Booking not found" });
     }
 
     // Update booking payment details
-    booking.payment.status = "paid";
-    booking.payment.transactionId =
-      capture.result.purchase_units[0].payments.captures[0].id;
-    booking.payment.paymentMethod = "PayPal";
-    booking.payment.paidAt = new Date();
+    booking.payment = {
+      status: "completed",
+      captureId: capture.result.id,
+      amount: booking.priceBreakdown.totalPrice,
+      currency: "USD",
+    };
     booking.bookingStatus = "confirmed";
-
     await booking.save({ session });
+
+    const resident = await Resident.findById(booking.resident).session(session);
+    if (!resident) {
+      return res.status(404).json({ message: "Resident not found" });
+    }
+    resident.status = "active";
+    resident.room = booking.room; // Assign roomId to resident
+    resident.checkInDate = booking.checkInDate;
+    resident.checkOutDate = booking.checkOutDate;
+    await resident.save({ session });
+
+    // Update room details
+    const room = await Room.findById(booking.room).session(session);
+    if (!room) {
+      return res.status(404).json({ message: "Room not found" });
+    }
+
+    const totalGuests = booking.guests.adults + booking.guests.children + booking.guests.infantsUnder2;
+    room.bedRemaining -= totalGuests;
+    room.residents.push(resident._id);
+    room.isAvailable = room.bedRemaining > 0;
+    room.status = room.residents.length < room.capacity ? "reserved" : "occupied";
+    await room.save({ session });
+
+    // Ensure the receipts directory exists
+    const receiptDir = path.resolve('./receipts/');
+    if (!fs.existsSync(receiptDir)) {
+      fs.mkdirSync(receiptDir);
+    }
 
     // Generate PDF payment receipt
     const pdfPath = path.resolve(`./receipts/${booking.bookingReference}.pdf`);
@@ -97,22 +133,39 @@ export const capturePayPalPayment = async (req, res) => {
     doc.end();
 
     // Wait for PDF generation
-    await new Promise((resolve) => {
-      doc.on("finish", resolve);
+    await new Promise((resolve, reject) => {
+      doc.on("finish", () => {
+        console.log("PDF generation completed.");
+        resolve();
+      });
+      doc.on("error", (err) => {
+        console.error("Error generating PDF:", err);
+        reject(err);
+      });
     });
 
-    // Send email with PDF receipt
+    const subject = `Payment Received - Booking ${booking.bookingReference}`;
+    const html = `
+      <h1>Payment Confirmation</h1>
+      <p>Booking Reference: ${booking.bookingReference}</p>
+      <p>Payment Amount: $${booking.priceBreakdown.totalPrice.toFixed(2)}</p>`;
+    const text = `Payment Confirmation\nBooking Reference: ${booking.bookingReference}\nPayment Amount: $${booking.priceBreakdown.totalPrice.toFixed(2)}`;
+
+    const attachments = [
+      {
+        filename: `${booking.bookingReference}.pdf`,
+        path: pdfPath,
+      },
+    ];
+
+    // Log and send email with PDF receipt
+    console.log("Sending email with PDF...");
     await sendEmail(
-      booking.customerEmail,
-      "Booking Confirmation & Payment Receipt",
-      "<p>Thank you for your payment. Please find your receipt attached.</p>",
-      "",
-      [
-        {
-          filename: `${booking.bookingReference}.pdf`,
-          path: pdfPath,
-        },
-      ]
+      resident.email,
+      subject,
+      html,
+      text,
+      attachments
     );
 
     // Commit transaction

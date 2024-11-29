@@ -12,9 +12,9 @@ const BookingSchema = new mongoose.Schema({
   },
 
   // User who made the booking
-  user: {
+  resident: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: 'User',
+    ref: 'Resident',
     required: true
   },
 
@@ -89,7 +89,7 @@ const BookingSchema = new mongoose.Schema({
   // Booking Status
   bookingStatus: {
     type: String,
-    enum: ['pending', 'confirmed'],
+    enum: ['pending', 'confirmed', 'cancelled'],
     default: 'pending'
   },
 
