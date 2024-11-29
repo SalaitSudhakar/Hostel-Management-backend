@@ -58,7 +58,6 @@ export const capturePayPalPayment = async (req, res) => {
   session.startTransaction();
 
   try {
-    const token = req.query.token;
     const { bookingId, orderId } = req.body;
 
     // Verify and capture the order
