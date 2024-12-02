@@ -10,7 +10,7 @@ const calculateRevenue = async (startDate, endDate) => {
     const revenue = await Booking.aggregate([
       {
         $match: {
-          "bookingStatus": "completed",  // Only consider completed bookings
+          "bookingStatus": "confirmed",  // Only consider completed bookings
           "payment.status": "paid",  // Only count paid bookings
           checkInDate: {
             $gte: new Date(startDate),
@@ -45,8 +45,19 @@ const calculateRoomOccupancyRate = async (startDate, endDate) => {
         },
       },
       {
+        $unwind: "$bookingDates", // Flatten the bookingDates array to group by individual dates
+      },
+      {
+        $match: {
+          "bookingDates.startDate": {
+            $gte: new Date(startDate),
+            $lte: new Date(endDate),
+          },
+        },
+      },
+      {
         $group: {
-          _id: date,
+          _id: "$bookingDates.startDate",  // Group by the startDate field
           totalRooms: { $sum: 1 },
           occupiedRooms: {
             $sum: {
@@ -56,25 +67,31 @@ const calculateRoomOccupancyRate = async (startDate, endDate) => {
         },
       },
     ]);
-    const occupancyRate = roomStats[0]?.occupiedRooms / roomStats[0]?.totalRooms || 0;
-    return occupancyRate * 100;  // Return as percentage
+
+    // If roomStats is empty, return 0, otherwise calculate occupancy rate
+    const occupancyRate = roomStats.length > 0
+      ? (roomStats[0].occupiedRooms / roomStats[0].totalRooms) * 100
+      : 0;
+
+    return occupancyRate; // Return occupancy rate as a percentage
   } catch (error) {
     console.error("Error calculating room occupancy rate:", error);
     return 0;
   }
 };
 
+
 // Download Expense Report
 export const downloadExpenseReport = async (req, res) => {
   try {
-    const { startDate, endDate } = req.body;
+    const { startDate, endDate } = req.query;
 
     // Fetch expenses based on date range
     const expenses = await Expense.find({
       date: { $gte: new Date(startDate), $lte: new Date(endDate) },
     });
 
-    // Generate PDF
+    // Generate styled PDF for the expense report
     const pdfBuffer = await createPdf('expense', expenses);
 
     // Set headers for downloading the PDF file
@@ -89,12 +106,12 @@ export const downloadExpenseReport = async (req, res) => {
 // Download Revenue Report
 export const downloadRevenueReport = async (req, res) => {
   try {
-    const { startDate, endDate } = req.body;
+    const { startDate, endDate } = req.query;
 
     // Calculate revenue
     const revenue = await calculateRevenue(startDate, endDate);
 
-    // Generate PDF for revenue report
+    // Generate styled PDF for revenue report
     const pdfBuffer = await createPdf('revenue', [{ revenue }]);
 
     // Set headers for downloading the PDF file
@@ -106,15 +123,16 @@ export const downloadRevenueReport = async (req, res) => {
   }
 };
 
+
 // Download Room Occupancy Report
 export const downloadRoomOccupancyReport = async (req, res) => {
   try {
-    const { startDate, endDate } = req.body;
+    const { startDate, endDate } = req.query;
 
     // Calculate room occupancy rate
     const occupancyRate = await calculateRoomOccupancyRate(startDate, endDate);
 
-    // Generate PDF for room occupancy report
+    // Generate styled PDF for room occupancy report
     const pdfBuffer = await createPdf('roomOccupancy', [{ occupancyRate }]);
 
     // Set headers for downloading the PDF file

@@ -9,6 +9,7 @@ export const createRoom = async (req, res) => {
     amenities,
     roomDescription,
     discount,
+    stars,
   } = req.body;
   let imageUrls = [];
 
@@ -27,7 +28,8 @@ export const createRoom = async (req, res) => {
     !amenities ||
     !capacity ||
     !roomDescription ||
-    !discount
+    !discount ||
+    !stars
   ) {
     return res.status(400).json({
       success: false,
@@ -53,6 +55,7 @@ export const createRoom = async (req, res) => {
       amenities: amenities.split(", "),
       roomDescription,
       discount,
+      stars,
       images: imageUrls,
       isAvailable: true, // Initially available
       roomStatus: "available",

@@ -41,9 +41,11 @@ export const createExpense = async (req, res) => {
   }
 };
 
+
+/* Get expense by date range and group by category */
 export const getExpensesByCategory = async (req, res) => {
   try {
-    const { startDate, endDate } = req.body;
+    const { startDate, endDate } = req.query;
 
     /* Validate for date range */
     if (!startDate || !endDate) {
@@ -84,69 +86,69 @@ export const getExpensesByCategory = async (req, res) => {
   }
 };
 
-/* Get expense by time */
-
-export const getExpensesByDate = async (req, res) => {
-    const { startDate, endDate, groupBy = 'month' } = req.body;  // Default grouping by month
-    try {
-      const groupStage = groupBy === 'year'
-        ? {
-            $dateToString: { format: '%Y', date: '$checkInDate' },  // Group by year
-          }
-        : {
-            $dateToString: { format: '%Y-%m', date: '$checkInDate' },  // Group by month
-          };
-  
-      const expenseData = await Booking.aggregate([
-        // Match only completed bookings
-        {
-          $match: {
-            bookingStatus: 'completed',
-            checkInDate: { $gte: new Date(startDate) },
-            checkOutDate: { $lte: new Date(endDate) },
-          },
-        },
-        // Project the price breakdown fields (expenses: rent, maintenanceCharge, tax)
-        {
-          $project: {
-            rent: '$priceBreakdown.rent',
-            maintenanceCharge: '$priceBreakdown.maintenanceCharge',
-            tax: '$priceBreakdown.tax',
-            dateGroup: groupStage, // Add the grouping by date
-          },
-        },
-        // Group by date (month or year) and sum the expenses categories
-        {
-          $group: {
-            _id: '$dateGroup',  // Group by the formatted date (month or year)
-            totalRent: { $sum: '$rent' },
-            totalMaintenanceCharge: { $sum: '$maintenanceCharge' },
-            totalTax: { $sum: '$tax' },
-          },
-        },
-        // Project the result to include total expenses
-        {
-          $project: {
-            _id: 0,
-            date: '$_id',
-            totalRent: 1,
-            totalMaintenanceCharge: 1,
-            totalTax: 1,
-            totalExpenses: { $add: ['$totalRent', '$totalMaintenanceCharge', '$totalTax'] },
-          },
-        },
-        {
-          // Sort the results by date in descending order (optional)
-          $sort: { date: -1 },
-        },
-      ]);
-  
-      return res.status(200).json({
-        message: 'Expenses grouped by date successfully',
-        expenses: expenseData || [],
-      });
-    } catch (error) {
-      console.error('Error aggregating expenses by date:', error.message);
-      return res.status(500).json({ message: 'Error aggregating expenses by date', error: error.message });
-    }
+/* Get expense by year group by Month */
+export const getExpensesByYear = async (req, res) => {
+  const { year } = req.query;  // Extract the year from the query
+  if (!year) {
+    return res.status(400).json({ message: 'Year is required' });
   };
+
+  try {
+    // Define the date range for the entire year
+    const startDate = new Date(`${year}-01-01`);
+    const endDate = new Date(`${year}-12-31`);
+
+    // Grouping by month (year-month format)
+    const groupStage = {
+      $dateToString: { format: '%Y-%m', date: '$date' },  // Group by year-month
+    };
+
+    const expenseData = await Expense.aggregate([
+      // Match expenses within the specified year range
+      {
+        $match: {
+          date: { $gte: startDate, $lte: endDate },
+        },
+      },
+      // Project the necessary fields and the grouping field (date in year-month format)
+      {
+        $project: {
+          amount: 1,
+          category: 1,
+          details: 1,
+          dateGroup: groupStage, // Add the grouping by date (year-month)
+        },
+      },
+      // Group by year-month and sum the expenses
+      {
+        $group: {
+          _id: '$dateGroup',  // Group by the formatted date (year-month)
+          totalAmount: { $sum: '$amount' },
+          expenses: { $push: { category: '$category', amount: '$amount', details: '$details' } }, // Collect individual expenses in each group
+        },
+      },
+      // Project the result to include total expenses and individual expense details
+      {
+        $project: {
+          _id: 0,
+          date: '$_id',
+          totalAmount: 1,
+          expenses: 1,  // Show the list of expenses in the group
+        },
+      },
+      {
+        // Sort the results by date in ascending order (optional)
+        $sort: { date: 1 },
+      },
+    ]);
+
+    return res.status(200).json({
+      message: 'Expenses grouped by date successfully',
+      expenses: expenseData || [],
+    });
+  } catch (error) {
+    console.error('Error aggregating expenses by date:', error.message);
+    return res.status(500).json({ message: 'Error aggregating expenses by date', error: error.message });
+  }
+};
+

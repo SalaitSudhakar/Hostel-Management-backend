@@ -13,6 +13,9 @@ const roomSchema = new mongoose.Schema(
         type: String,
       },
     ],
+    stars: {
+      type: Number,
+    },
     price: { type: Number, required: true, min: 0 },
     isAvailable: { type: Boolean, default: true },
     capacity: {

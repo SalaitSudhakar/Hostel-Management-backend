@@ -182,6 +182,7 @@ export const createBooking = async (req, res) => {
     // Update room details
     room.residents.push(residentId);
     room.isAvailable = room.bedRemaining > 0;
+    room.roomStatus = "reserved";
     await room.save({ session });
 
     // Send confirmation email
