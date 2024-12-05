@@ -13,13 +13,19 @@ import expenseRoute from './Routes/expenseRoutes.js'
 import revenueRoute from './Routes/revenueRoutes.js'
 import roomOccupancyRoute from './Routes/roomOccupancyRoutes.js'
 import downloadReportRoute from './Routes/downloadReportRoutes.js'
+import helmet from 'helmet';
 
 dotenv.config();
 
 const app = express();
 
+
 app.use(cors());
 app.use(express.json());
+app.use(helmet({
+  contentSecurityPolicy: true,
+  
+}));
 
 connectDb();
 
