@@ -1,4 +1,3 @@
-import Room from "../Models/roomSchema.js";
 
   // Occupancy Rate grouped by date (e.g., by month or year)
 export const roomOccupancyRateByDate = async (req, res) => {
