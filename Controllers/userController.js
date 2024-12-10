@@ -159,7 +159,7 @@ export const forgotPassword = async (req, res) => {
 
     // Email content
     const subject = "Password Reset Link";
-    const resetUrl = `http://localhost:5173/reset-password/${user._id}/${resetToken}`;
+    const resetUrl = `https://hostel-management-mern.netlify.app/reset-password/${user._id}/${resetToken}`;
     const html = `
       <p>You recently requested to reset the password for your account.</p>
       <p>Click the button below to proceed:</p>

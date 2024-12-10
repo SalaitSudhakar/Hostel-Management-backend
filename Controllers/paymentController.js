@@ -77,8 +77,8 @@ export const createPayPalOrder = async (req, res) => {
         application_context: {
           brand_name: "HM Hostel",
           locale: "en-US",
-          return_url: "http://localhost:5173/payment-success",
-          cancel_url: "http://localhost:5173/payment-failure",
+          return_url: "https://hostel-management-mern.netlify.app/payment-success",
+          cancel_url: "https://hostel-management-mern.netlify.app/payment-failure",
         },
       },
       responseType: "json",
@@ -135,7 +135,7 @@ export const capturePayPalPayment = async (req, res) => {
     // Check the status of the payment
     if (paymentStatus !== "COMPLETED") {
       console.log("Payment was not successful. Redirecting to failure page...");
-      return res.redirect("http://localhost:5173/payment-failure");
+      return res.redirect("https://hostel-management-mern.netlify.app/payment-failure");
     }
 
     // Update booking details
@@ -224,7 +224,7 @@ export const capturePayPalPayment = async (req, res) => {
       bookingStatus: booking.bookingStatus,
     });
   } catch (error) {
-    res.redirect("http://localhost:5173/payment-failure");
+    res.redirect("https://hostel-management-mern.netlify.app/payment-failure");
     console.error(
       "PayPal payment capture error:",
       error.response?.data || error.message
