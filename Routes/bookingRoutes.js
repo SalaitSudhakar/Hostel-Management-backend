@@ -1,5 +1,5 @@
 import express from "express";
-import {createBooking, cancelBooking, getBookingByReference} from "../Controllers/bookingController.js";
+import {createBooking, cancelBooking, getBookingById} from "../Controllers/bookingController.js";
 import {
   authMiddleware,
   roleMiddleware
@@ -12,15 +12,15 @@ router.post("/create", authMiddleware, roleMiddleware(["resident"]), createBooki
 
 // Get booking by reference
 router.get(
-  "/:reference",
+  "/:id",
   authMiddleware,
-  roleMiddleware(["admin"]),
-  getBookingByReference
+  roleMiddleware(["admin", "resident"]),
+  getBookingById
 );
 
 // Cancel booking
 router.patch(
-  "/cancel/:reference",
+  "/cancel/:id",
   authMiddleware,
   roleMiddleware(["resident"]),
   cancelBooking

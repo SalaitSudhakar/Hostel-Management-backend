@@ -47,6 +47,7 @@ export const getExpensesByCategory = async (req, res) => {
   try {
     const { startDate, endDate } = req.query;
 
+   
     /* Validate for date range */
     if (!startDate || !endDate) {
       return res

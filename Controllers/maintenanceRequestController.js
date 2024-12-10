@@ -9,6 +9,7 @@ export const createMaintenanceRequest = async (req, res) => {
   const { roomNumber, issueTitle, issueDescription, priority } = req.body;
   const residentId = req.user.id;
 
+
   const validPriorities = ["low", "medium", "high"];
   const charge = { low: 50, medium: 100, high: 150 };
 
@@ -30,11 +31,9 @@ export const createMaintenanceRequest = async (req, res) => {
       return res.status(404).json({ message: "Resident not found" });
     }
 
-    
     // Find the room by its roomNumber
-    const room = await Room.find({ number: roomNumber })
-    .populate("room", "_id");
-    console.log(room)
+    const room = await Room.findOne({ roomNumber: roomNumber });
+  
     if (!room) {
       return res.status(404).json({ message: "Room not found" });
     }
@@ -46,7 +45,6 @@ export const createMaintenanceRequest = async (req, res) => {
       });
     }
 
-    
     // Create the maintenance request
     const maintenanceRequest = new MaintenanceRequest({
       resident: residentId,
@@ -54,11 +52,44 @@ export const createMaintenanceRequest = async (req, res) => {
       issueTitle,
       issueDescription,
       priority,
-      charge: charge[priority] ,
+      charge: charge[priority],
       status: "Pending",
     });
 
     await maintenanceRequest.save();
+
+    const to = resident.email;
+    const subject = "Maintenance Request Created";
+    const html = `
+    <html>
+    <body style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background-color: #FFF5E1;">
+        <div style="background-color: #FF8C00; color: white; padding: 15px; text-align: center;">
+            <h2 style="margin: 0;">Maintenance Request Update</h2>
+        </div>
+        <div style="padding: 20px;">
+            <p>Dear ${resident.name},</p>
+            <p>This is to inform you that your maintenance request has been Received:</p>
+            <table style="width: 100%; border-collapse: collapse; margin: 10px 0; border: 1px solid #FF8C00;">
+                <tr>
+                    <td style="border: 1px solid #FF8C00; padding: 8px; background-color: #FFA500; color: white;"><strong>Issue Description:</strong></td>
+                    <td style="border: 1px solid #FF8C00; padding: 8px;">${issueDescription}</td>
+                </tr>
+                <tr>
+                    <td style="border: 1px solid #FF8C00; padding: 8px; background-color: #FFA500; color: white;"><strong>Priority:</strong></td>
+                    <td style="border: 1px solid #FF8C00; padding: 8px;">${priority}</td>
+                </tr>
+                <tr>
+                    <td style="border: 1px solid #FF8C00; padding: 8px; background-color: #FFA500; color: white;"><strong>Current Status:</strong></td>
+                    <td style="border: 1px solid #FF8C00; padding: 8px;">Pending</td>
+                </tr>
+            </table>
+            <p style="color: #FF8C00;">Best regards,<br>Facility Management</p>
+        </div>
+    </body>
+    </html>
+    `;
+
+    await sendEmail(to, subject, html);
 
     res.status(201).json({
       message: "Maintenance request created successfully",
@@ -146,9 +177,7 @@ export const assignStaff = async (req, res) => {
 
     await sendEmail(to, subject, html);
 
-    res
-      .status(200)
-      .json({ message: "Staff assigned successfully", request });
+    res.status(200).json({ message: "Staff assigned successfully", request });
   } catch (error) {
     console.log(error);
     res.status(500).json({ message: "Error updating maintenance request" });
@@ -228,17 +257,15 @@ export const resolveMaintenanceRequest = async (req, res) => {
   }
 };
 
-
 /* Get requests based on staff Id */
 export const getRequestsByStaffId = async (req, res) => {
   try {
-    const requests = await MaintenanceRequest.find({ 
+    const requests = await MaintenanceRequest.find({
       assignedTo: req.user.id,
-      status: "In Progress"
-
-     })
-    .populate("resident", "name email")
-    .populate("room", "roomNumber");
+      status: "In Progress",
+    })
+      .populate("resident", "name email")
+      .populate("room", "roomNumber");
     res
       .status(200)
       .json({ message: "Requests fetched successfully", data: requests });
@@ -247,42 +274,3 @@ export const getRequestsByStaffId = async (req, res) => {
     res.status(500).json({ message: "Error fetching requests" });
   }
 };
-
- /* Get maintenance requests by resident Id */
-/*export const getRequestsByResidentId = async (req, res) => {
-  try {
-    const requests = await MaintenanceRequest.find({ resident: req.user.id });
-    res
-      .status(200)
-      .json({ message: "Requests fetched successfully", data: requests });
-  } catch (error) {
-    res.status(500).json({ message: "Error fetching requests" });
-  }
-};
- */
-
-
-// Delete a maintenance request (Admin only)
-/* export const deleteMaintenanceRequest = async (req, res) => {
-  const { requestId } = req.params;
-
-  try {
-    const request = await MaintenanceRequest.findById(requestId);
-    if (!request) {
-      return res.status(404).json({ message: "Request not found" });
-    }
-
-    if (request.status === "Resolved") {
-      return res
-        .status(400)
-        .json({ message: "Resolved requests cannot be deleted" });
-    }
-
-    await MaintenanceRequest.findByIdAndDelete(requestId);
-    res
-      .status(200)
-      .json({ message: "Maintenance request deleted successfully" });
-  } catch (error) {
-    res.status(500).json({ message: "Error deleting maintenance request" });
-  }
-}; */

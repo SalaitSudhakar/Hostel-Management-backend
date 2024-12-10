@@ -48,12 +48,6 @@ const residentSchema = new mongoose.Schema(
       type: Date,
       default: null,
     },
-    billingHistory: [
-      {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: "billing",
-      },
-    ],
   },
   {
     timestamps: true,

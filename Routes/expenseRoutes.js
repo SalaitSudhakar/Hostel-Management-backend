@@ -6,7 +6,7 @@ import { createExpense, getExpensesByCategory, getExpensesByYear } from '../Cont
 const router = express.Router();
 
 router.post('/create', authMiddleware, roleMiddleware(['admin']), createExpense);
-router.get('/expense-by-category', authMiddleware, roleMiddleware(['admin']), getExpensesByCategory);
+router.get('/category', authMiddleware, roleMiddleware(['admin']), getExpensesByCategory);
 router.get('/expense-by-year', authMiddleware, roleMiddleware(['admin']), getExpensesByYear);
 
 export default router;

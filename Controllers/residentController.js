@@ -1,3 +1,4 @@
+import Booking from "../Models/bookingSchema.js";
 import Resident from "../Models/residentSchema.js";
 
 // Utility Validation Functions
@@ -134,3 +135,25 @@ export const deleteResidentAccount = async (req, res) => {
     res.status(500).json({ message: "Internal server error." });  
   }
   }
+
+
+// Get user booking details
+export const getUserBookingDetails = async (req, res) => {
+  const userId = req.user.id;
+
+  try {
+    const userBookings = await Booking.find({ resident: userId }).populate(
+      "room",
+      "roomNumber"
+    );
+    if (!userBookings) {
+      return res.status(404).json({ message: "Bookings not found." });
+    }
+   
+
+    res.status(200).json({ message: "Bookings found.", data: userBookings });
+  } catch (error) {
+    console.error("Error fetching user bookings:", error);
+    res.status(500).json({ message: "Internal server error." });
+  }
+};

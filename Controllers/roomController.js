@@ -13,7 +13,7 @@ export const createRoom = async (req, res) => {
   } = req.body;
   let imageUrls = [];
 
-  console.log(req.body);
+
   // Handle image upload (if file uploaded)
   if (req.files && req.files.length > 0) {
     req.files.forEach((file) => {

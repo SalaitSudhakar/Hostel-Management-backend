@@ -1,0 +1,22 @@
+# Hostel Management System - Backend
+
+## Overview
+
+This is the backend part of the Hostel Management System built using Node.js, Express.js, and MongoDB. The backend handles data management, business logic, authentication, and integration with external services like payment gateways and notification systems.
+
+## Features
+
+1. **Room Allocation**: API for managing room availability and assigning rooms to residents.
+2. **Maintenance Requests**: API to handle maintenance request submissions, reviews, and updates.
+3. **Billing and Payments**: API for managing billing, generating invoices, and processing payments.
+4. **Resident Information**: API to store and manage resident profiles and update their records.
+5. **User Authentication**: JWT-based authentication for secure access control.
+
+## Tech Stack
+
+- **Backend Framework**: Node.js with Express.js
+- **Database**: MongoDB
+- **Authentication**: JWT (JSON Web Tokens)
+- **Payment Integration**:  PayPal (for billing)
+- **Notification Services**: nodemailer (for alerts)
+- **Hosting**:  Render for deployment

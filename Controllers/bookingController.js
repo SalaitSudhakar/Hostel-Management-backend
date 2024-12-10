@@ -53,7 +53,7 @@ const calculateTotalPrice = async (
     totalNights *
     (guests.adults + guests.children + guests.infantsUnder2);
   const tax = totalRoomCost * 0.18; // Assuming 18% GST
-  const totalPrice = totalRoomCost + maintenanceCharge + tax;
+  const totalPrice = totalRoomCost + ( maintenanceCharge || 50) + tax;
 
   const priceBreakdown = {
     nights: totalNights,
@@ -68,7 +68,6 @@ const calculateTotalPrice = async (
 };
 
 // Create a new booking
-// Create a new booking
 export const createBooking = async (req, res) => {
   const session = await mongoose.startSession();
   session.startTransaction();
@@ -78,7 +77,6 @@ export const createBooking = async (req, res) => {
 
     // Validate required fields
     if (!roomId || !checkInDate || !checkOutDate || !guests) {
-      console.log("Missing required booking details");
       return res
         .status(400)
         .json({ message: "Missing required booking details" });
@@ -110,30 +108,57 @@ export const createBooking = async (req, res) => {
       console.log("Resident not found");
       return res.status(404).json({ message: "Resident not found" });
     }
-    if (resident.room) {
-      console.log("Resident already has a room");
-      return res.status(400).json({ message: "Resident already has a room" });
+
+    // Check if the user already has an overlapping booking
+    const userBookings = await Booking.find({
+      resident: residentId,
+      bookingStatus: { $ne: "cancelled" },
+      $or: [
+        {
+          checkInDate: { $lt: parsedCheckOut },
+          checkOutDate: { $gt: parsedCheckIn },
+        },
+      ],
+    }).session(session);
+
+    if (userBookings.length > 0) {
+      console.log("User already has an overlapping booking");
+      return res.status(400).json({
+        message: "You already have an active booking for this period",
+      });
     }
 
     // Find and validate room
     const room = await Room.findById(roomId).session(session);
     if (!room || !room.isAvailable || room.bedRemaining <= 0) {
+      console.log("Room is not available");
       return res
         .status(404)
-        .json({ message: "Room is not available or has no beds remaining" });
+        .json({ message: "Room is not available or fully booked" });
+    }
+    if (room.residents.length >= room.capacity || room.bedRemaining === 0) {
+      room.isAvailable = false;
+      room.roomStatus = "occupied"
+      return res.status(400).json({ message: "Room is already fully booked" });
     }
 
-    // Check for overlapping bookings only on check-in date
-    const existingBookings = await Booking.find({
+    // Check for overlapping bookings for the selected room
+    const overlappingRoomBookings = await Booking.find({
       room: roomId,
       bookingStatus: { $ne: "cancelled" },
-      checkInDate: parsedCheckIn, // Match exactly on check-in date
+      $or: [
+        {
+          checkInDate: { $lt: parsedCheckOut },
+          checkOutDate: { $gt: parsedCheckIn },
+        },
+      ],
     }).session(session);
 
-    if (existingBookings.length >= room.bedRemaining) {
+    if (overlappingRoomBookings.length >= room.bedRemaining) {
+      console.log("Room is already booked for the selected period");
       return res
         .status(400)
-        .json({ message: "Room is already booked for the check-in date" });
+        .json({ message: "Room is already booked for the selected period" });
     }
 
     // Calculate total price
@@ -181,9 +206,9 @@ export const createBooking = async (req, res) => {
 
     // Update room details
     room.residents.push(residentId);
+    room.bedRemaining = room.capacity - room.residents.length;
     room.isAvailable = room.bedRemaining > 0;
-    room.roomStatus = "reserved";
-    await room.save({ session });
+    await room.save();
 
     // Send confirmation email
     const subject = `Booking Confirmation - ${newBooking.bookingReference}`;
@@ -204,10 +229,14 @@ export const createBooking = async (req, res) => {
     await session.commitTransaction();
     session.endSession();
 
+   
     return res.status(201).json({
       message: "Booking created successfully",
       booking: {
         id: newBooking._id,
+        roomId,
+        checkInDate: newBooking.checkInDate,
+        checkOutDate: newBooking.checkOutDate,
         bookingReference: newBooking.bookingReference,
         totalPrice: priceBreakdown.totalPrice.toFixed(2),
       },
@@ -221,11 +250,14 @@ export const createBooking = async (req, res) => {
 };
 
 // Get booking by reference
-export const getBookingByReference = async (req, res) => {
-  const { reference } = req.params;
+export const getBookingById = async (req, res) => {
+  const { id } = req.params;
 
   try {
-    const booking = await Booking.findOne({ bookingReference: reference });
+    const booking = await Booking.finById(id).populate(
+      "room",
+      "_id roomNumber"
+    );
     if (!booking) {
       return res.status(404).json({ message: "Booking not found" });
     }
@@ -239,17 +271,11 @@ export const getBookingByReference = async (req, res) => {
 
 // Cancel a booking
 export const cancelBooking = async (req, res) => {
-  const session = await mongoose.startSession();
-  session.startTransaction();
-
   try {
-    const { reference } = req.params; // Booking reference
-
+    const { id } = req.params;
 
     // Find the booking
-    const booking = await Booking.findOne({
-      bookingReference: reference,
-    }).session(session);
+    const booking = await Booking.findById(id);
     if (!booking) {
       return res.status(404).json({ message: "Booking not found" });
     }
@@ -259,8 +285,8 @@ export const cancelBooking = async (req, res) => {
     }
 
     // Find the resident
-    const residentid =  booking.resident;
-    const resident = await Resident.findById(residentid).session(session);
+    const residentid = booking.resident;
+    const resident = await Resident.findById(residentid);
     if (!resident) {
       return res.status(404).json({ message: "Resident not found" });
     }
@@ -268,14 +294,14 @@ export const cancelBooking = async (req, res) => {
     const roomId = booking.room; // ObjectId reference to Room
 
     // Find the room
-    const room = await Room.findById(roomId).session(session);
+    const room = await Room.findById(roomId);
     if (!room) {
       return res.status(404).json({ message: "Room not found" });
     }
 
     // Update booking status to "cancelled"
     booking.bookingStatus = "cancelled";
-    await booking.save({ session });
+    await booking.save();
 
     // Update room availability
     const totalGuests =
@@ -286,22 +312,17 @@ export const cancelBooking = async (req, res) => {
 
     // Remove the resident from the room's `residents` array
     room.residents = room.residents.filter(
-      (id) => id.toString() !== residentId.toString()
+      (id) => id.toString() !== residentid.toString()
     );
     room.isAvailable = room.residents.length < room.capacity; // Set availability based on current residents
-    await room.save({ session });
+    await room.save();
 
     // Remove the room reference in the resident's document (set to null)
     resident.room = null;
-    await resident.save({ session });
-
-    await session.commitTransaction();
-    session.endSession();
+    await resident.save();
 
     return res.status(200).json({ message: "Booking cancelled successfully" });
   } catch (error) {
-    await session.abortTransaction();
-    session.endSession();
     console.error("Error cancelling booking:", error.message);
     return res.status(500).json({ message: error.message });
   }

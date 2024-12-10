@@ -1,12 +1,11 @@
-import axios from "axios";
 import Booking from "../Models/bookingSchema.js";
-import mongoose from "mongoose";
 import sendEmail from "../Utils/mailer.js";
 import pdfkit from "pdfkit";
 import fs from "fs";
 import path from "path";
 import Room from "../Models/roomSchema.js";
 import Resident from "../Models/residentSchema.js";
+import got from "got";
 
 // PayPal API URLs
 const PAYPAL_API = process.env.PAYPAL_API; // Use sandbox for testing
@@ -23,17 +22,26 @@ const getPayPalAccessToken = async () => {
   const credentials = Buffer.from(`${CLIENT_ID}:${CLIENT_SECRET}`).toString(
     "base64"
   );
-  const response = await axios.post(
-    `${PAYPAL_API}/v1/oauth2/token`,
-    "grant_type=client_credentials",
-    {
+  try {
+    const response = await got.post(`${PAYPAL_API}/v1/oauth2/token`, {
+      searchParams: {
+        grant_type: "client_credentials",
+      },
       headers: {
         Authorization: `Basic ${credentials}`,
-        "Content-Type": "application/x-www-form-urlencoded",
       },
-    }
-  );
-  return response.data.access_token;
+      responseType: "json",
+    });
+  
+    const newAccessToken = response.body.access_token;
+    return newAccessToken;
+  } catch (error) {
+    console.error(
+      "Error fetching access token:",
+      error.response?.body || error.message
+    );
+    throw error;
+  }
 };
 
 // Create PayPal Order
@@ -50,106 +58,104 @@ export const createPayPalOrder = async (req, res) => {
     // Get PayPal access token
     const accessToken = await getPayPalAccessToken();
 
-    // Create PayPal order
-    const orderData = {
-      intent: "CAPTURE",
-      purchase_units: [
-        {
-          amount: {
-            currency_code: "USD",
-            value: booking.priceBreakdown.totalPrice.toFixed(2),
+    const orderResponse = await got.post(`${PAYPAL_API}/v2/checkout/orders`, {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+      },
+      json: {
+        intent: "CAPTURE",
+        purchase_units: [
+          {
+            amount: {
+              currency_code: "USD",
+              value: booking.priceBreakdown.totalPrice.toFixed(2) || 1000,
+            },
+            reference_id: booking.bookingReference,
           },
-          reference_id: booking.bookingReference,
+        ],
+        application_context: {
+          brand_name: "HM Hostel",
+          locale: "en-US",
+          return_url: "http://localhost:5173/payment-success",
+          cancel_url: "http://localhost:5173/payment-failure",
         },
-      ],
-    };
+      },
+      responseType: "json",
+    });
 
-    const orderResponse = await axios.post(
-      `${PAYPAL_API}/v2/checkout/orders`,
-      orderData,
-      {
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-          "Content-Type": "application/json",
-        },
-      }
-    );
-
-    const approvalUrl = orderResponse.data.links.find(
-      (link) => link.rel === "approve"
-    ).href;
+    const orderId = orderResponse.body?.id;
+ 
 
     res.status(201).json({
       message: "PayPal order created successfully",
-      orderId: orderResponse.data.id,
-      approvalUrl,
+      orderId: orderId,
     });
   } catch (error) {
     console.error(
-      "PayPal order creation error:",
-      error.response?.data || error.message
+      "Error creating PayPal order:",
+      error.response?.body || error.message
     );
-    res.status(500).json({ message: "Failed to create PayPal order" });
+    return res.status(500).json({
+      error: "Internal Server Error.",
+      details: error.response?.body || error.message,
+    });
   }
 };
 
 // Capture PayPal Payment
 export const capturePayPalPayment = async (req, res) => {
-  const session = await mongoose.startSession();
-  session.startTransaction();
-
   try {
-    const { bookingId, orderId } = req.body;
+    const { orderID } = req.params;
+    const { bookingId } = req.query;
 
+    if (!orderID) {
+      return res.status(400).json({ message: "Payment ID is required" });
+    }
     // Get PayPal access token
     const accessToken = await getPayPalAccessToken();
 
     // Get order details
-    const orderResponse = await axios.get(
-      `${PAYPAL_API}/v2/checkout/orders/${orderId}`,
-      {
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-        },
-      }
-    );
-
-    if (orderResponse.data.status !== "APPROVED") {
-      return res.status(400).json({ message: "Order not approved by payer" });
-    }
-
-    // Capture payment
-    const captureResponse = await axios.post(
-      `${PAYPAL_API}/v2/checkout/orders/${orderId}/capture`,
-      {},
+    const captureResponse = await got.post(
+      `${PAYPAL_API}/v2/checkout/orders/${orderID}/capture`,
       {
         headers: {
           Authorization: `Bearer ${accessToken}`,
           "Content-Type": "application/json",
         },
+        responseType: "json",
       }
     );
 
-    if (captureResponse.data.status !== "COMPLETED") {
-      return res.status(400).json({ message: "Payment not successful" });
+    // correctly extract and log the payment status
+    const paymentData = captureResponse.body;
+    const paymentStatus = paymentData.status;
+  
+
+    // Check the status of the payment
+    if (paymentStatus !== "COMPLETED") {
+      console.log("Payment was not successful. Redirecting to failure page...");
+      return res.redirect("http://localhost:5173/payment-failure");
     }
 
     // Update booking details
-    const booking = await Booking.findById(bookingId).session(session);
+    const booking = await Booking.findById(bookingId);
+  
     if (!booking) {
       return res.status(404).json({ message: "Booking not found" });
     }
 
     booking.payment = {
       status: "paid",
-      captureId: captureResponse.data.id,
+      captureId: paymentData.id,
       amount: booking.priceBreakdown.totalPrice,
       currency: "USD",
     };
     booking.bookingStatus = "confirmed";
-    await booking.save({ session });
+    await booking.save();
 
-    const resident = await Resident.findById(booking.resident).session(session);
+    const resident = await Resident.findById(booking.resident);
+  
     if (!resident) {
       return res.status(404).json({ message: "Resident not found" });
     }
@@ -157,122 +163,151 @@ export const capturePayPalPayment = async (req, res) => {
     resident.room = booking.room;
     resident.checkInDate = booking.checkInDate;
     resident.checkOutDate = booking.checkOutDate;
-    await resident.save({ session });
+    await resident.save();
 
-    const room = await Room.findById(booking.room).session(session);
+    const room = await Room.findById(booking.room);
+   
     if (!room) {
       return res.status(404).json({ message: "Room not found" });
     }
+
+    // Update room details
     const totalGuests =
       booking.guests.adults +
       booking.guests.children +
       booking.guests.infantsUnder2;
     room.bedRemaining -= totalGuests;
-    room.residents.push(resident._id);
+    if (room.residents.length < room.capacity) {
+      room.residents.push(resident._id);
+    }
     room.isAvailable = room.bedRemaining > 0;
+    room.residents.push(resident._id);  
     room.status =
       room.residents.length < room.capacity ? "reserved" : "occupied";
-    await room.save({ session });
+    await room.save();
 
-    // Generate and send PDF receipt
-    const receiptDir = path.resolve("./receipts/");
-    if (!fs.existsSync(receiptDir)) {
-      fs.mkdirSync(receiptDir);
+
+
+    if (!fs.existsSync("./receipts")) {
+      fs.mkdirSync("./receipts");
+    }
+    // Generate and send PDF receipt asynchronously
+    const pdfPath = path.resolve(`./receipts/${booking._id}.pdf`);
+
+    try {
+      generatePdfReceipt(booking, pdfPath);
+    } catch (error) {
+      console.error("PDF Generation Failed: ", error);
     }
 
-    const pdfPath = path.resolve(`./receipts/${booking.bookingReference}.pdf`);
-    const doc = new pdfkit();
-    doc.pipe(fs.createWriteStream(pdfPath));
-    doc.fontSize(18).text("Payment Receipt", { align: "center" });
-    doc.text(`\nBooking Reference: ${booking.bookingReference}`);
-    doc.text("\nPrice Breakdown:");
-    doc.text("Room Cost: $" + booking.priceBreakdown.basePrice.toFixed(2));
-    doc.text(
-      "Maintenance Charge: $" +
-        booking.priceBreakdown.maintenanceCharge.toFixed(2)
-    );
-    doc.text("Tax: $" + booking.priceBreakdown.tax.toFixed(2));
-    doc.text(`Total Amount: $${booking.priceBreakdown.totalPrice.toFixed(2)}`);
-    doc.text(`Payment Method: PayPal`);
-    doc.text(`Transaction ID: ${captureResponse.data.id}`);
-    doc.text(`Paid At: ${new Date()}`);
-    doc.end();
-
-    await new Promise((resolve, reject) => {
-      doc.on("finish", resolve);
-      doc.on("error", reject);
-    });
-
+    // Send email asynchronously after PDF generation
     const subject = `Payment Received - Booking ${booking.bookingReference}`;
     const html = `<h1>Payment Confirmation</h1><p>Booking Reference: ${booking.bookingReference}</p>`;
     const text = `Payment Confirmation\nBooking Reference: ${booking.bookingReference}`;
     const attachments = [
-      { filename: `${booking.bookingReference}.pdf`, path: pdfPath },
+      { filename: `${booking._id}.pdf`, path: pdfPath },
     ];
 
-    await sendEmail(resident.email, subject, html, text, attachments);
-
-    fs.unlink(pdfPath, (err) => {
-      if (err) console.error("Error deleting PDF:", err);
-    });
-
-    await session.commitTransaction();
-    session.endSession();
+    try {
+      await sendEmail(resident.email, subject, html, text, attachments);
+      console.log("Email Sent Successfully");
+    } catch (error) {
+      console.error("Email not sent:", error);
+    } finally {
+      fs.unlink(pdfPath, (err) => {
+        if (err) console.error("Error deleting PDF:", err);
+      });
+    }
 
     res.status(200).json({
       message: "Payment successful, receipt sent via email",
       bookingStatus: booking.bookingStatus,
     });
   } catch (error) {
-    await session.abortTransaction();
-    session.endSession();
+    res.redirect("http://localhost:5173/payment-failure");
     console.error(
       "PayPal payment capture error:",
       error.response?.data || error.message
     );
-    res.status(400).json({ message: error.message });
   }
 };
 
 // Refund PayPal Payment (Optional)
 export const refundPayPalPayment = async (req, res) => {
-  const session = await mongoose.startSession();
-  session.startTransaction();
-
   try {
     const { bookingId } = req.body;
-    const booking = await Booking.findById(bookingId).session(session);
+    const booking = await Booking.findById(bookingId);
 
     if (!booking || booking.payment.status !== "paid") {
       throw new Error("Cannot refund this booking");
     }
 
-    const request = new paypal.payments.RefundsCreateRequest(
-      booking.payment.captureId
+    const refundResponse = await got.post(
+      `${PAYPAL_API}/v2/payments/captures/${booking.payment.captureId}/refund`,
+      {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          "Content-Type": "application/json",
+        },
+        json: {
+          amount: { value: booking.payment.amount, currency_code: "USD" },
+        },
+        responseType: "json",
+      }
     );
-    request.requestBody({
-      amount: {
-        currency_code: "USD",
-        value: booking.payment.amount.toFixed(2),
-      },
-    });
 
-    const refund = await client.execute(request);
     booking.payment.status = "refunded";
     booking.bookingStatus = "cancelled";
-    await booking.save({ session });
-
-    await session.commitTransaction();
-    session.endSession();
+    await booking.save();
 
     res.status(200).json({
       message: "Refund processed successfully",
-      refundId: refund.result.id,
+      refundDetails: refundResponse.body,
     });
   } catch (error) {
-    await session.abortTransaction();
-    session.endSession();
-    console.error("PayPal refund error:", error);
-    res.status(400).json({ message: error.message });
+    console.error("Refund error:", error.response?.body || error.message);
+    res.status(500).json({ message: "Failed to process refund" });
+  }
+};
+
+// PDF generation function
+// PDF generation function
+const generatePdfReceipt = (booking, pdfPath) => {
+  try {
+    const doc = new pdfkit();
+    const outputStream = fs.createWriteStream(pdfPath);
+
+    // Pipe the document to the file stream
+    doc.pipe(outputStream);
+
+    // Add PDF content
+    doc.fontSize(20).text("Payment Receipt", { align: "center" });
+    doc.moveDown();
+    doc
+      .fontSize(12)
+      .text(`Booking Reference: ${booking.bookingReference}`)
+      .text(`Name: ${booking.name}`)
+      .text(`Email: ${booking.email}`)
+      .text(`Payment Amount: $${booking.priceBreakdown.totalPrice.toFixed(2)}`)
+      .text(`Payment Status: Paid`)
+      .text(`Check-in Date: ${booking.checkInDate}`)
+      .text(`Check-out Date: ${booking.checkOutDate}`)
+      .text(`Room: ${booking.room}`);
+    doc.moveDown();
+    doc.text("Thank you for your payment!", { align: "center" });
+
+    // Finalize the PDF
+    doc.end();
+
+    outputStream.on("finish", () => {
+      console.log(`PDF receipt generated successfully: ${pdfPath}`);
+    });
+
+    outputStream.on("error", (err) => {
+      console.error(`Error writing PDF receipt to file: ${err.message}`);
+    });
+  } catch (error) {
+    // Handle unexpected errors gracefully
+    console.error(`Error generating PDF receipt: ${error.message}`);
   }
 };
