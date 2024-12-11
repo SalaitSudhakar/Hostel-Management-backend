@@ -152,7 +152,7 @@ export const getUserBookingDetails = async (req, res) => {
       return res.status(404).json({ message: "No bookings found." });
     }
 
-    res.status(200).json({ message: "Bookings found.", data: userBookings });
+    res.status(200).json({ message: "Bookings found.", data: [userBookings] });
   } catch (error) {
     console.error("Error fetching user bookings:", error);
     res.status(500).json({ message: "Internal server error." });
