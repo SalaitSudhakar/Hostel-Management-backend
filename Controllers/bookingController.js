@@ -314,7 +314,8 @@ export const cancelBooking = async (req, res) => {
     room.residents = room.residents.filter(
       (id) => id.toString() !== residentid.toString()
     );
-    room.isAvailable = room.residents.length < room.capacity; // Set availability based on current residents
+    room.isAvailable = room.residents.length < room.capacity;
+    room.roomStatus = "available"; // Set availability based on current residents
     await room.save();
 
     // Remove the room reference in the resident's document (set to null)
