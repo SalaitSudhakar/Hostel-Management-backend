@@ -35,7 +35,7 @@ router.delete(
   roleMiddleware(["admin"]),
   deleteResidentAccount
 );
-export default router;
+
 
 /* Get booking Details of a resident */
 router.get(
@@ -44,3 +44,5 @@ router.get(
   roleMiddleware(["resident"]),
   getUserBookingDetails
 );
+
+export default router;
