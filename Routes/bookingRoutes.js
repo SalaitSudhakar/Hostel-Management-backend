@@ -14,7 +14,7 @@ router.post("/create", authMiddleware, roleMiddleware(["resident"]), createBooki
 router.get(
   "/:id",
   authMiddleware,
-  roleMiddleware(["admin", "resident"]),
+  roleMiddleware(["admin"]),
   getBookingById
 );
 
