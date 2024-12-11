@@ -263,7 +263,7 @@ export const getBookingById = async (req, res) => {
   const { id } = req.params;
 
   try {
-    const booking = await Booking.finById(id).populate(
+    const booking = await Booking.findById(id).populate(
       "room",
       "_id roomNumber"
     );
