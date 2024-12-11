@@ -42,7 +42,7 @@ export const getResidentDetails = async (req, res) => {
   const userId = req.user.id;
 
   try {
-    const resident = await Resident.findById(userId)
+    const resident = await Resident.findById(userId).select("-password")
     .populate("room", "roomNumber");
     if (!resident) {
       return res.status(404).json({ message: "Resident not found." });
