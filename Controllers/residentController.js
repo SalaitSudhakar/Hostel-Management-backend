@@ -137,7 +137,6 @@ export const deleteResidentAccount = async (req, res) => {
   }
 
 
-
 // Get user booking details
 export const getUserBookingDetails = async (req, res) => {
   const userId = req.user.id;
