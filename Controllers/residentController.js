@@ -137,19 +137,21 @@ export const deleteResidentAccount = async (req, res) => {
   }
 
 
+
 // Get user booking details
 export const getUserBookingDetails = async (req, res) => {
   const userId = req.user.id;
 
   try {
-    const userBookings = await Booking.find({ resident: userId }).populate(
-      "room",
-      "roomNumber"
-    );
-    if (!userBookings) {
-      return res.status(404).json({ message: "Bookings not found." });
+    // Add filter to exclude bookings with bookingStatus "cancelled"
+    const userBookings = await Booking.find({
+      resident: userId,
+      bookingStatus: { $ne: "cancelled" } // $ne operator means "not equal"
+    }).populate("room", "roomNumber");
+
+    if (!userBookings || userBookings.length === 0) {
+      return res.status(404).json({ message: "No bookings found." });
     }
-   
 
     res.status(200).json({ message: "Bookings found.", data: userBookings });
   } catch (error) {
