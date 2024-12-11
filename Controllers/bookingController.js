@@ -53,7 +53,7 @@ const calculateTotalPrice = async (
     totalNights *
     (guests.adults + guests.children + guests.infantsUnder2);
   const tax = totalRoomCost * 0.18; // Assuming 18% GST
-  const totalPrice = totalRoomCost + ( maintenanceCharge || 50) + tax;
+  const totalPrice = totalRoomCost + (maintenanceCharge || 50) + tax;
 
   const priceBreakdown = {
     nights: totalNights,
@@ -138,7 +138,7 @@ export const createBooking = async (req, res) => {
     }
     if (room.residents.length >= room.capacity || room.bedRemaining === 0) {
       room.isAvailable = false;
-      room.roomStatus = "occupied"
+      room.roomStatus = "occupied";
       return res.status(400).json({ message: "Room is already fully booked" });
     }
 
@@ -173,6 +173,16 @@ export const createBooking = async (req, res) => {
       guests,
       maintenanceCharge
     );
+
+    // Validation
+    if (
+      !priceBreakdown ||
+      isNaN(priceBreakdown.roomCost) ||
+      isNaN(priceBreakdown.tax) ||
+      isNaN(priceBreakdown.totalPrice)
+    ) {
+      return res.status(400).send({ error: "Invalid price breakdown data" });
+    }
 
     // Generate booking reference
     const bookingReference = generateBookingReference();
@@ -229,7 +239,6 @@ export const createBooking = async (req, res) => {
     await session.commitTransaction();
     session.endSession();
 
-   
     return res.status(201).json({
       message: "Booking created successfully",
       booking: {
