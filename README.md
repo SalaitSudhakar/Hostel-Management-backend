@@ -12,6 +12,10 @@ This is the backend part of the Hostel Management System built using Node.js, Ex
 4. **Resident Information**: API to store and manage resident profiles and update their records.
 5. **User Authentication**: JWT-based authentication for secure access control.
 
+## API Documentation
+
+My Postman API documentation Link 👉 [Click Here](https://documenter.getpostman.com/view/39168834/2sAYHwJPuJ#4f412d8d-029d-412c-82ef-00ec639c3613)
+
 ## Tech Stack
 
 - **Backend Framework**: Node.js with Express.js
