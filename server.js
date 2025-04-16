@@ -11,7 +11,7 @@ import maintenanceRequestRoute from "./Routes/maintenanceRequestRoutes.js";
 import staffRoute from "./Routes/staffRoutes.js";
 import expenseRoute from "./Routes/expenseRoutes.js";
 import revenueRoute from "./Routes/revenueRoutes.js";
-import downloadReportRoute from "./Routes/downloadReportRoutes.js";
+// import downloadReportRoute from "./Routes/downloadReportRoutes.js";
 
 dotenv.config();
 
@@ -37,7 +37,7 @@ app.use("/api/staff", staffRoute);
 app.use("/api/expense", expenseRoute);
 app.use("/api/revenue", revenueRoute);
 
-app.use("/api/download-report", downloadReportRoute);
+// app.use("/api/download-report", downloadReportRoute);
 
 const port = process.env.PORT || 4000;
 

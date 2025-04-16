@@ -1,81 +1,81 @@
 import Room from "../Models/roomSchema.js";
 
-export const createRoom = async (req, res) => {
-  let {
-    roomNumber,
-    roomType,
-    price,
-    capacity,
-    amenities,
-    roomDescription,
-    discount,
-    stars,
-  } = req.body;
-  let imageUrls = [];
+// export const createRoom = async (req, res) => {
+//   let {
+//     roomNumber,
+//     roomType,
+//     price,
+//     capacity,
+//     amenities,
+//     roomDescription,
+//     discount,
+//     stars,
+//   } = req.body;
+//   let imageUrls = [];
 
 
-  // Handle image upload (if file uploaded)
-  if (req.files && req.files.length > 0) {
-    req.files.forEach((file) => {
-      imageUrls.push(file.path); // Push each image's path to imageUrls array
-    });
-  }
+//   // Handle image upload (if file uploaded)
+//   if (req.files && req.files.length > 0) {
+//     req.files.forEach((file) => {
+//       imageUrls.push(file.path); // Push each image's path to imageUrls array
+//     });
+//   }
 
-  if (
-    !roomNumber ||
-    !roomType ||
-    !price ||
-    !amenities ||
-    !capacity ||
-    !roomDescription ||
-    !discount ||
-    !stars
-  ) {
-    return res.status(400).json({
-      success: false,
-      message:
-        "Room number, room type, and price, capacity, amenities, roomDescription, discount are required",
-    });
-  }
+//   if (
+//     !roomNumber ||
+//     !roomType ||
+//     !price ||
+//     !amenities ||
+//     !capacity ||
+//     !roomDescription ||
+//     !discount ||
+//     !stars
+//   ) {
+//     return res.status(400).json({
+//       success: false,
+//       message:
+//         "Room number, room type, and price, capacity, amenities, roomDescription, discount are required",
+//     });
+//   }
 
-  try {
-    const existingRoom = await Room.findOne({ roomNumber });
-    if (existingRoom) {
-      return res.status(400).json({
-        success: false,
-        message: "Room number already exists",
-      });
-    }
+//   try {
+//     const existingRoom = await Room.findOne({ roomNumber });
+//     if (existingRoom) {
+//       return res.status(400).json({
+//         success: false,
+//         message: "Room number already exists",
+//       });
+//     }
 
-    const newRoom = new Room({
-      roomNumber,
-      roomType,
-      price,
-      capacity,
-      amenities: amenities.split(", "),
-      roomDescription,
-      discount,
-      stars,
-      images: imageUrls,
-      isAvailable: true, // Initially available
-      roomStatus: "available",
-      bedRemaining: capacity,
-    });
+//     const newRoom = new Room({
+//       roomNumber,
+//       roomType,
+//       price,
+//       capacity,
+//       amenities: amenities.split(", "),
+//       roomDescription,
+//       discount,
+//       stars,
+//       images: imageUrls,
+//       isAvailable: true, // Initially available
+//       roomStatus: "available",
+//       bedRemaining: capacity,
+//     });
 
-    await newRoom.save();
-    res.status(201).json({
-      success: true,
-      message: "Room added successfully",
-      data: newRoom,
-    });
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: "Error adding new room",
-      error: error.message,
-    });
-  }
-};
+//     await newRoom.save();
+//     res.status(201).json({
+//       success: true,
+//       message: "Room added successfully",
+//       data: newRoom,
+//     });
+//   } catch (error) {
+//     res.status(500).json({
+//       success: false,
+//       message: "Error adding new room",
+//       error: error.message,
+//     });
+//   }
+// };
 
 /* Get all rooms */
 export const getAllRooms = async (req, res) => {

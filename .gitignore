@@ -1,3 +1,6 @@
 node_modules
 .env
 receipts/
+Controllers/downloadReportController.js
+Routes/downloadReportRoutes.js
+Utils/createPdf.js
