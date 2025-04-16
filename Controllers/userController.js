@@ -24,6 +24,16 @@ const getModelByRole = (role) => {
       throw new Error("Invalid role");
   }
 };
+const getRegisterModelByRole = (role) => {
+  switch (role) {
+    case "resident":
+      return Resident;
+    case "staff":
+      return Staff;
+    default:
+      throw new Error("Invalid role");
+  }
+};
 
 // Register a user
 export const registerUser = async (req, res) => {
@@ -63,7 +73,7 @@ export const registerUser = async (req, res) => {
   }
 
   try {
-    const Model = getModelByRole(role);
+    const Model = getRegisterModelByRole(role);
     const existingUser = await Model.findOne({ email });
     if (existingUser)
       return res.status(400).json({ message: `${role} already exists` });
